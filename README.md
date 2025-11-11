@@ -18,7 +18,6 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
 * **RF04:** O algoritmo de **Replicação de Pixel** deve ser implementado para a aproximação.
 * **RF05:** O algoritmo de **Decimação/Amostragem** deve ser implementado para a redução.
 * **RF06:** O algoritmo de **Média de Blocos** deve ser implementado para a redução.
-
 * **RF07:** A seleção da operação (zoom in/out) deve ser controlada por chaves e/ou botões da placa.
 * **RF08:** A imagem processada deve ser exibida em um monitor através da saída VGA.
 
@@ -45,117 +44,99 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
 | :--- | :--- |
 | Kit de Desenvolvimento | Terasic DE1-SoC |
 | Monitor | Monitor com entrada VGA. |
-| Computador | Para compilação do projeto |
+| Computador | Para compilação do projeto e controle do Zoom In e Zoom Out |
 
 ## 4. Instalação e Configuração
 
 1.  **Clonar o Repositório:**
     ```bash
-    git clone <https://github.com/VitorAugusto210/SD-Problema2.git>
+    git clone [https://github.com/VitorAugusto210/SD-Problema2.git](https://github.com/VitorAugusto210/SD-Problema2.git)
     cd <NOME_DO_SEU_REPOSITORIO>
     ```
-2.  **Configuração do Quartus Prime:**    
+2.  **Configuração do Quartus Prime:**
     * Abra o Quartus Prime.
-    * Abra o arquivo de projeto `.qpf`.    
+    * Abra o arquivo de projeto `.qpf`.
 3.  **Compilação:**
     * Com o Quartus aberto, clique no botão de Start Compilation.
-
         ![botao_compilar](imgs/start_compilation.png)
-    
     para gerar o arquivo de programação (`.sof`).
-    * Ainda no Quartus, vá em Programmer 
+    * Ainda no Quartus, vá em Programmer
 4.  **Programação da FPGA:**
     * Conecte a placa DE1-SoC ao computador.
-    * Abra o "Programmer" no Quartus Prime. 
-
+    * Abra o "Programmer" no Quartus Prime.
         ![programmer](imgs/programmer.png)
     * Selecione o arquivo `.sof` gerado e programe a placa.
     * Clique em "Start" e as instruções serão repassadas a placa.
 
 ## 5. Manual do Usuário
 
-| Teclas    | Ação
-| :----    | :---|
-| "i" ou + | Selecionar Zoom In
-| "o" ou - | Selecionar Zoom Out
-| "n"      | Alternar Modo de Zoom In
-| "m"      | Alternar Modo de Zoom Out
-| "l"      | Carregar nova imagem em Bitmap
-| "r"   | Resetar imagem (recarrega da original)
-| "h"   | Voltar para o Menu Inicial
-| "q"   | Sair do programa.
-
-
+| Teclas | Ação |
+| :--- | :--- |
+| "i" ou + | Selecionar Zoom In |
+| "o" ou - | Selecionar Zoom Out |
+| "n" | Alternar Modo de Zoom In |
+| "m" | Alternar Modo de Zoom Out |
+| "l" | Carregar nova imagem em Bitmap |
+| "r" | Resetar imagem (recarrega da original) |
+| "h" | Voltar para o Menu Inicial |
+| "q" | Sair do programa. |
 
 ## 6. Descrição da Solução
 Abaixo consta a descrição de cada modulo criado para a solução do projeto.
 
-### 6.1. Módulo de Memória de Imagem
-O módulo de memória (memory.v) é responsável por armazenar a imagem de entrada (fornecida em binário) e fornecer os dados de pixel correspondentes a cada coordenada de tela solicitada.
+### `soc_system.qsys` (Sistema HPS e Barramento)
 
-Principais características e lógica de funcionamento:
+Este arquivo, criado no Platform Designer (Qsys), define o sistema de processamento principal e sua conexão com a lógica da FPGA.
 
-Inicialização: O bloco initial é usado para carregar a imagem de entrada na memória image_data a partir de um arquivo de texto binário (image.txt). A instrução $readmemb lê o conteúdo do arquivo linha por linha, onde cada linha deve representar um byte de dados de pixel.
+* **Propósito:** Configurar o processador **ARM (HPS)** e criar a ponte de comunicação (barramento Avalon) entre o software (executando no HPS) e o hardware (nosso coprocessador na FPGA).
+* **Componentes Chave:**
+    * `hps_0`: O próprio Hard Processor System (HPS), que gerencia a memória DDR3 e os periféricos principais.
+    * `h2f_lw_axi_master`: A ponte "Lightweight HPS-to-FPGA" (Ponte Leve HPS-para-FPGA). É através deste barramento que o HPS envia comandos para o coprocessador.
+* **Interface de Comunicação (PIOs):** A comunicação entre o HPS e o coprocessador é realizada através de quatro periféricos PIO, que são mapeados em endereços de memória específicos para o HPS:
+    * `pio_instruct` (Saída, 29 bits): Mapeado em `0x0000`. Usado pelo HPS para enviar o barramento completo de instrução (opcode, endereço de memória e valor) para o coprocessador.
+    * `pio_enable` (Saída, 1 bit): Mapeado em `0x0010`. Usado pelo HPS para enviar um pulso de "enable" (habilitação) que inicia a operação no coprocessador.
+    * `pio_dataout` (Entrada, 8 bits): Mapeado em `0x0020`. Usado pelo HPS para ler dados de resultado (como o valor de um pixel) do coprocessador.
+    * `pio_flags` (Entrada, 4 bits): Mapeado em `0x0030`. Usado pelo HPS para ler bits de status, como `FLAG_DONE`, `FLAG_ERROR`, `FLAG_ZOOM_MAX` e `FLAG_ZOOM_MIN`.
 
-Endereçamento de Pixels: O módulo calcula o endereço de memória (addr) para cada pixel com base nas coordenadas de imagem x_img e y_img. A fórmula usada é addr = y_img * IMG_WIDTH + x_img.
+### `ghrd_top.v` (Arquivo Top-Level)
 
-Lógica de Saída: Um bloco always síncrono, disparado pelo clock e pelo reset, controla a saída de pixel. Quando o sinal flow_enabled está ativo e as coordenadas x_img e y_img estão dentro dos limites da imagem, o módulo acessa a memória no endereço calculado e coloca o valor do pixel na saída pixel_out. O sinal pixel_out_valid é então ativado para indicar que os dados do pixel são válidos e podem ser lidos por outros módulos. Caso contrário, a saída é zerada e pixel_out_valid é desativado.
+Este é o arquivo Verilog de nível mais alto do projeto. Ele representa o design completo da FPGA, conectando os blocos lógicos aos pinos físicos da placa.
 
-### 6.3. Módulos de Redimensionamento
+* **Propósito:** Instanciar e "conectar" o sistema HPS (`soc_system`) e o nosso coprocessador (`main.v`) um ao outro e aos pinos externos da placa DE1-SoC.
+* **Instâncias Principais:**
+    1.  `soc_system u0 (...)`: Instancia o sistema HPS/Qsys. Este bloco mapeia as portas lógicas do HPS (ex: `memory_mem_a`) para os pinos físicos da placa (ex: `HPS_DDR3_ADDR`).
+    2.  `main main_inst (...)`: Instancia o nosso módulo lógico principal (`main.v`), que atua como o coprocessador.
+* **Conexões Chave:**
+    * **HPS <-> Coprocessador:** O `ghrd_top.v` conecta os fios de exportação dos PIOs do `soc_system` às portas de entrada/saída do `main_inst`. Por exemplo, o fio `pio_instruct` (vindo do HPS) é roteado para as entradas `INSTRUCTION`, `DATA_IN` e `MEM_ADDR` do módulo `main`. As saídas `FLAG_DONE` do `main` são conectadas ao fio `pio_flags` (indo para o HPS).
+    * **Coprocessador -> Pinos da Placa:** Conecta as saídas de vídeo do `main_inst` (como `VGA_R`, `VGA_G`, `VGA_B`, `VGA_HS`, etc.) diretamente às portas correspondentes da placa, que levam ao conector VGA.
 
-#### 6.3.1. Zoom In (Aproximação)
-* **Vizinho Mais Próximo:** 
+### `main.v` (Módulo do Coprocessador)
 
-    Entradas: O módulo recebe as coordenadas do pixel da tela VGA (x_vga, y_vga), um sinal de controle flow_enabled e um fator de zoom k.
+Este é o coração da lógica de FPGA customizada. Ele contém toda a lógica de processamento de imagem e responde aos comandos recebidos do HPS.
 
-    Lógica de Cálculo: A lógica do Vizinho Mais Próximo para o zoom in é implementada com um deslocamento de bits (shift right) nas coordenadas VGA. O cálculo de x_img <= x_vga >> k e y_img <= y_vga >> k é uma operação que faz a divisão das coordenadas da tela por 2^k. Ela determina qual pixel da imagem original corresponde ao pixel atual da tela.
+* **Propósito:** Implementar a Máquina de Estados Finitos (FSM) e o *datapath* (caminho de dados) para os algoritmos de zoom e gerenciamento de memória.
+* **Componentes Chave:**
+    * **PLL (`pll0`):** Gera os clocks necessários para o sistema: `clk_100` (100MHz) para a FSM e lógicas internas, e `clk_25_vga` (25MHz) para o controlador VGA.
+    * **Memórias (`mem1`):** O módulo `main` instancia **três** blocos de memória RAM:
+        1.  `memory1`: "Memória da Imagem Original". É aqui que o HPS escreve a imagem (via instrução `STORE`) e de onde os algoritgos de *downscale* (redução) leem.
+        2.  `memory2`: "Memória de Exibição". Este bloco é lido continuamente pelo `vga_module` para gerar o sinal de vídeo. O resultado final dos algoritmos é copiado para cá.
+        3.  `memory3`: "Memória de Trabalho". Os algoritmos de *upscale* (ampliação) e *downscale* (redução) escrevem seus resultados nesta memória temporária.
+    * **Máquina de Estados Finitos (FSM):** O `case (uc_state)` principal gerencia todo o fluxo de controle. Possui estados como:
+        * `IDLE`: Aguardando um novo comando (pulso em `ENABLE`).
+        * `READ_AND_WRITE`: Executa as instruções `LOAD` (leitura) e `STORE` (escrita) vindas do HPS.
+        * `ALGORITHM`: Estado complexo que executa a lógica de pixel-a-pixel para o algoritmo de zoom selecionado (`PR_ALG`, `NHI_ALG`, `BA_ALG`, `NH_ALG`).
+        * `COPY_READ`/`COPY_WRITE`: Estados usados para transferir a imagem processada (da `memory1` ou `memory3`) para a `memory2` (exibição).
+    * **Controlador VGA (`vga_module`):** Instancia o módulo VGA, que varre a `memory2` com base nas coordenadas `next_x` e `next_y` e gera os sinais de sincronismo e cores (R, G, B) para o monitor.
 
-    Saídas: O módulo gera as coordenadas x_img e y_img, que são utilizadas pelo módulo de memória para a busca dos dados do pixel correspondente. O sinal de controle valid é ativado quando as coordenadas de saída são válidas.
+### `mem1.v` (Módulo de Memória)
 
-* **Replicação de Pixel:** 
+Este arquivo é um invólucro (wrapper) para um bloco de memória `altsyncram`, gerado pelo MegaFunction Wizard da Intel.
 
-    Entradas: O módulo recebe as coordenadas do pixel da tela VGA (x_vga, y_vga), um sinal de habilitação de fluxo (flow_enabled), um seletor de algoritmo (algorithm_select) e um fator de zoom (k).
-
-    Lógica de Cálculo: A lógica da Replicação de Pixel para o zoom in é implementada através de uma divisão inteira. Primeiramente, um zoom_factor é calculado fazendo um deslocamento de bits em k (1 << k), que equivale a 2^k. Em seguida, as coordenadas da imagem são calculadas dividindo-se as coordenadas VGA pelo zoom_factor (x_img <= x_vga / zoom_factor e y_img <= y_vga / zoom_factor). Essa operação mapeia um bloco de pixels da tela para um único pixel da imagem original, replicando-o para preencher a área ampliada.
-
-    Saídas: O módulo gera as coordenadas x_img e y_img, que são usadas pelo módulo de memória para buscar os dados do pixel correspondente. O sinal de controle valid é ativado quando as coordenadas de saída são válidas.
-
-#### 6.3.2. Zoom Out (Redução)
-* **Decimação/Amostragem:** 
-
-    Tem como objetivo reduzir o tamanho da imagem de entrada.
-
-    Entradas: O módulo recebe as coordenadas do pixel da tela VGA, x_vga e y_vga, e um fator de zoom de redução, k.
-
-    Lógica de Cálculo: Para cada pixel na tela de saída, o módulo calcula qual pixel da imagem original ele representa. O fator de zoom k é usado como um valor de deslocamento de bits (shift left). A expressão x_img <= x_vga << k e y_img <= y_vga << k multiplica as coordenadas de saída por 2^k.
-
-    Decimação: O algoritmo "decima" (descarta) a maioria dos pixels da imagem original. Para criar um pixel na imagem reduzida, ele seleciona um pixel da imagem original. Por exemplo, com um zoom out de 2x (k=1), o pixel de saída no canto superior esquerdo (0,0) corresponderá ao pixel (0,0) da imagem original. Para o pixel (1,0) da saída, ele lerá o pixel (2,0) da imagem original, ignorando o pixel (1,0). O resultado é uma imagem reduzida.
-
-* **Média de Blocos:** 
-
-    Entradas: O módulo recebe as coordenadas do pixel da tela VGA (x_vga, y_vga), um sinal de habilitação de fluxo (flow_enabled), um seletor de algoritmo (algorithm_select), um fator de zoom (k) e o pixel de entrada da memória (mem_pixel_in).
-
-    Lógica de Cálculo: A lógica da Média de Blocos é controlada por uma máquina de estados finitos (FSM) que é ativada quando o algorithm_select está em nível alto e k é maior que zero. Primeiramente, as coordenadas base (base_x, base_y) do bloco na imagem original são calculadas multiplicando as coordenadas da tela por 2^k (x_vga << k). A FSM então varre uma área (bloco) de pixels da imagem original, acumula a soma dos valores desses pixels em um registrador (sum) e, ao final, calcula a média. Uma otimização foi implementada: para zoom de 4x e 8x, apenas uma sub-região central do bloco é somada para determinar o pixel final. A média é calculada por meio de uma operação de deslocamento de bits para a direita (>>), que é uma forma eficiente de realizar a divisão em hardware.
-
-    Saídas: O módulo gera os endereços mem_x_addr e mem_y_addr para ler o bloco de pixels da memória. Após o cálculo da média, o resultado é disponibilizado na saída pixel_out, e o sinal pixel_valid é ativado para indicar que o dado é válido.
-
-### 6.4. Módulo de Controle VGA
-
-O módulo vga_controller é o componente central para a comunicação com o monitor VGA. Sua principal função é gerar os sinais de sincronismo horizontal (hsync), sincronismo vertical (vsync) e os sinais de temporização que controlam a varredura da tela.
-
-O módulo é configurado para a resolução padrão VGA de 640x480 pixels com um clock de 25 MHz. Ele opera através de contadores síncronos:
-
-x_vga: Contador horizontal, que avança a cada ciclo de clock, de 0 até H_TOTAL - 1 (800).
-
-y_vga: Contador vertical, que avança apenas quando o contador horizontal completa um ciclo, de 0 até V_TOTAL - 1 (525).
-
-A partir desses contadores, o módulo gera os sinais críticos de temporização:
-
-hsync (Sincronismo Horizontal): Um pulso ativo baixo é gerado quando o contador x_vga está na região de sincronismo horizontal (entre 656 e 752).
-
-vsync (Sincronismo Vertical): Um pulso ativo baixo é gerado quando o contador y_vga está na região de sincronismo vertical (entre 490 e 492).
-
-flow_enabled: Este sinal indica a área visível da tela (640x480 pixels). Ele é ativo quando as coordenadas dos contadores x_vga e y_vga estão dentro dos limites visíveis da imagem. A lógica do projeto high_level utiliza esse sinal para determinar quando enviar dados de pixel para o monitor, garantindo que apenas a imagem processada seja exibida na tela e não os sinais de retorno e temporização.
+* **Propósito:** Definir um bloco de memória RAM síncrona de porta dupla (Dual-Port).
+* **Configuração:**
+    * **Modo:** `DUAL_PORT`. Isso é crucial, pois permite que a FSM escreva na memória (Porta A) ao mesmo tempo em que o controlador VGA lê dela (Porta B).
+    * **Tamanho:** `WIDTH_A = 8` (8 bits de dados, para escala de cinza) e `WIDTHAD_A = 17` (17 bits de endereço). Isso fornece 131.072 endereços, mais do que o suficiente para os 76.800 pixels (320x240) necessários.
+    * **Inicialização:** A memória é configurada para ser pré-carregada com o arquivo `../imagem_output.mif` durante a síntese.
 
 ## 7. Testes e Validação
 Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento do redimensionamento da imagem por cada algoritmo após utilização de cada tecla
@@ -184,6 +165,3 @@ Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento 
 Zoom Out: Ambos algoritmos não apresentaram diferenças visiveis tanto na imagem original quanto na imagem original diminuida.
 
 * **Limitações:** Algumas Imagens mal convertidas apresentam alguns ruidos de cores.
-
-
-
