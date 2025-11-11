@@ -73,9 +73,6 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
     * Clique em "Start" e as instruções serão repassadas a placa.
 
 ## 5. Manual do Usuário
-Após realizar as etapas de instalação e configuração a FPGA estará pronta para ser utilizada da seguinte forma (Segue imagem retirada do manual da placa para servir com referência):
-
-![programmer](imgs/DE1-SoC.png)
 
 | Teclas    | Ação
 | :----    | :---|
