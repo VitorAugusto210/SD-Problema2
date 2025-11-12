@@ -1,5 +1,36 @@
 # Zoom Digital: Módulo de Redimensionamento de Imagens
 
+## Sumário
+* [1. Visão Geral do Projeto](#1-visão-geral-do-projeto)
+* [2. Definição do Problema](#2-definição-do-problema)
+* [3. Requisitos do Projeto](#3-requisitos-do-projeto)
+    * [3.1. Requisitos Funcionais](#31-requisitos-funcionais)
+    * [3.2. Requisitos Não Funcionais](#32-requisitos-não-funcionais)
+* [4. Fundamentação Teórica](#4-fundamentação-teórica)
+    * [4.1. Zoom In (Aproximação)](#41-zoom-in-aproximação)
+    * [4.2. Zoom Out (Redução)](#42-zoom-out-redução)
+* [5. Ambiente de Desenvolvimento](#5-ambiente-de-desenvolvimento)
+    * [5.1. Software Utilizado](#51-software-utilizado)
+    * [5.2. Hardware Utilizado](#52-hardware-utilizado)
+* [6. Manual do Usuário](#6-manual-do-usuário)
+    * [6.1. Instalação e Configuração](#61-instalação-e-configuração)
+    * [6.2. Comandos de Operação](#62-comandos-de-operação)
+* [7. Descrição da Solução](#7-descrição-da-solução)
+    * [7.1. `soc_system.qsys` (Sistema HPS e Barramento)](#71-soc_systemqsys-sistema-hps-e-barramento)
+    * [7.2. `ghrd_top.v` (Arquivo Top-Level)](#72-ghrd_topv-arquivo-top-level)
+    * [7.3. `main.v` (Módulo do Coprocessador)](#73-mainv-módulo-do-coprocessador)
+    * [7.4. `mem1.v` (Módulo de Memória)](#74-mem1v-módulo-de-memória)
+    * [7.5. `api_fpga.s` (A API de Hardware em Assembly)](#75-api_fpgas-a-api-de-hardware-em-assembly)
+    * [7.6. `constantes.h` (O Dicionário do Projeto)](#76-constantesh-o-dicionário-do-projeto)
+    * [7.7. `menu.c` (A Aplicação Principal)](#77-menuc-a-aplicação-principal)
+* [8. Testes e Validação](#8-testes-e-validação)
+    * [8.1. Teste de Zoom In](#81-teste-de-zoom-in)
+    * [8.2. Teste de Zoom Out](#82-teste-de-zoom-out)
+    * [8.3. Seleção de "Janela" de Zoom](#83-seleção-de-janela-de-zoom)
+* [9. Análise dos Resultados](#9-análise-dos-resultados)
+
+---
+
 ## 1. Visão Geral do Projeto
 
 Este projeto foi desenvolvido como parte da avaliação da disciplina de Sistemas Digitais (TEC499) do curso de Engenharia de Computação da Universidade Estadual de Feira de Santana (UEFS). O objetivo principal é projetar um módulo embarcado para redimensionamento de imagens em tempo real, aplicando efeitos de zoom in e zoom out.
@@ -39,7 +70,7 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
 * **RNF03:** As imagens devem ser representadas em escala de cinza, com cada pixel codificado por um inteiro de 8 bits.
 * **RNF04:** O coprocessador deve ser compatível com o processador ARM (Hard Processor System - HPS) para viabilizar o desenvolvimento da solução.
 * **RNF05:** A imagem deve ser lida a partir de um arquivo e transferida para o coprocessador;
-* **RNF06:** Deverão ser implementados na API os comandos da ISA do coprocessador. As instruções devem utilizar as operações que foram anteriormente implementadas via chaves e botões na placa (vide Problema 1);
+* **RNF06:** Deverão ser implementados na API os comandos da ISA do coprocessador. [cite_start]As instruções devem utilizar as operações que foram anteriormente implementadas via chaves e botões na placa (vide Problema 1); [cite: 644-645]
 
 ## 4. Fundamentação Teórica
 
@@ -102,12 +133,11 @@ Esta seção descreve como instalar, configurar e operar o sistema, servindo com
     ```
 2.  **Configuração do Quartus Prime:**
     * Abra o Quartus Prime.
-    * Abra o arquivo de projeto `.qpf`.
+    * Abra o arquivo de projeto `.qpf` (localizado na pasta `Coprocessador`).
 3.  **Compilação (Hardware):**
     * Com o Quartus aberto, clique no botão de Start Compilation.
         ![botao_compilar](imgs/start_compilation.png)
     * Isso irá gerar o arquivo de programação (`.sof`).
-    * Ainda no Quartus, vá em Programmer.
 4.  **Programação da FPGA:**
     * Conecte a placa DE1-SoC ao computador.
     * Abra o "Programmer" no Quartus Prime.
@@ -121,28 +151,18 @@ Esta seção descreve como instalar, configurar e operar o sistema, servindo com
         ssh aluno@172.65.213.<Digitos finais da Placa utilizada>
         # Forneça a senha da máquina assim que solicitada
         ```
-    * Transfira os arquivos de software (`menu.c`, `constantes.h`, `api_fpga.s`) do seu computador para a placa usando `scp`, ou crie-os manualmente usando `nano`:
-        ```bash
-        # Exemplo com nano
-        nano api_fpga.s
-        # (Cole o conteúdo do arquivo e salve)
-
-        nano constantes.h
-        # (Cole o conteúdo do arquivo e salve)
-
-        nano menu.c
-        # (Cole o conteúdo do arquivo e salve)
-        ```
-    
+    * Transfira os arquivos de software (`menu.c`, `constantes.h`, `api_fpga.s`, `Makefile`) do seu computador para a placa usando `scp`.
     * Transfira a imagem bitmap desejada para a placa:
         ```bash
         # Em um terminal no SEU computador
         scp /<Diretorio da imagem em bitmap> aluno@172.65.213.<...>:~/
         ```
-
-    * Compile o software no HPS:
+    * De volta ao terminal SSH na placa, compile o software:
         ```bash
         make # Makefile que faz toda compilação
+        ```
+    * Execute o programa:
+        ```bash
         sudo ./programa_final # Comando para rodar o programa
         ```
 
@@ -155,17 +175,21 @@ Após executar o programa (`sudo ./programa_final`), os seguintes comandos estã
 | Setas | Direcionar a "janela" de Zoom |
 | "i" ou + | Selecionar Zoom In |
 | "o" ou - | Selecionar Zoom Out |
-| "n" | Alternar Modo de Zoom In *Note que após alterar, o menu irá ser modificado, mostrando o algoritmo de seleção atual |
-| "m" | Alternar Modo de Zoom Out *Note que após alterar, o menu irá ser modificado, mostrando o algoritmo de seleção atual |
-| "l" | Carregar nova imagem em Bitmap *Imagem precisa estar dentro da placa |
+| "n" | Alternar Modo de Zoom In |
+| "m" | Alternar Modo de Zoom Out |
+| "l" | Carregar nova imagem em Bitmap |
 | "r" | Resetar imagem (recarrega para a imagem no formato original) |
 | "h" | Voltar para o Menu Inicial |
 | "q" | Sair do programa. |
 
+**Notas:**
+* **Teclas 'n' e 'm':** Após alterar o algoritmo, o menu será reimpresso, mostrando a seleção atual.
+* **Tecla 'l':** A imagem bitmap a ser carregada precisa já estar dentro da placa (transferida via `scp`).
+
 ## 7. Descrição da Solução
 Abaixo consta a descrição de cada modulo criado para a solução do projeto.
 
-### `soc_system.qsys` (Sistema HPS e Barramento)
+### 7.1. `soc_system.qsys` (Sistema HPS e Barramento)
 
 Criado no Platform Designer (Qsys), ele define o sistema de processamento principal e sua conexão com a lógica da FPGA.
 
@@ -179,7 +203,7 @@ Criado no Platform Designer (Qsys), ele define o sistema de processamento princi
     * `pio_dataout` (Entrada, 8 bits): Mapeado em `0x0020`. Usado pelo HPS para ler dados de resultado (como o valor de um pixel) do coprocessador.
     * `pio_flags` (Entrada, 4 bits): Mapeado em `0x0030`. Usado pelo HPS para ler bits de status, como `FLAG_DONE`, `FLAG_ERROR`, `FLAG_ZOOM_MAX` e `FLAG_ZOOM_MIN`.
 
-### `ghrd_top.v` (Arquivo Top-Level)
+### 7.2. `ghrd_top.v` (Arquivo Top-Level)
 
 Este é o arquivo Verilog de nível mais alto do projeto. Ele representa o design completo da FPGA, conectando os blocos lógicos aos pinos físicos da placa.
 
@@ -191,7 +215,7 @@ Este é o arquivo Verilog de nível mais alto do projeto. Ele representa o desig
     * **HPS <-> Coprocessador:** O `ghrd_top.v` conecta os fios de exportação dos PIOs do `soc_system` às portas de entrada/saída do `main_inst`. Por exemplo, o fio `pio_instruct` (vindo do HPS) é roteado para as entradas `INSTRUCTION`, `DATA_IN` e `MEM_ADDR` do módulo `main`. As saídas `FLAG_DONE` do `main` são conectadas ao fio `pio_flags` (indo para o HPS).
     * **Coprocessador -> Pinos da Placa:** Conecta as saídas de vídeo do `main_inst` (como `VGA_R`, `VGA_G`, `VGA_B`, `VGA_HS`, etc.) diretamente às portas correspondentes da placa, que levam ao conector VGA.
 
-### `main.v` (Módulo do Coprocessador)
+### 7.3. `main.v` (Módulo do Coprocessador)
 
 Este é o coração da lógica de FPGA customizada. Ele contém toda a lógica de processamento de imagem e responde aos comandos recebidos do HPS.
 
@@ -209,7 +233,7 @@ Este é o coração da lógica de FPGA customizada. Ele contém toda a lógica d
         * `COPY_READ`/`COPY_WRITE`: Estados usados para transferir a imagem processada (da `memory1` ou `memory3`) para a `memory2` (exibição).
     * **Controlador VGA (`vga_module`):** Instancia o módulo VGA, que varre a `memory2` com base nas coordenadas `next_x` e `next_y` e gera os sinais de sincronismo e cores (R, G, B) para o monitor.
 
-### `mem1.v` (Módulo de Memória)
+### 7.4. `mem1.v` (Módulo de Memória)
 
 Este arquivo é um wrapper para um bloco de memória `altsyncram`, gerado pelo MegaFunction Wizard da Intel.
 
@@ -217,51 +241,43 @@ Este arquivo é um wrapper para um bloco de memória `altsyncram`, gerado pelo M
 * **Configuração:**
     * **Modo:** `DUAL_PORT`. Isso é crucial, pois permite que a FSM escreva na memória (Porta A) ao mesmo tempo em que o controlador VGA lê dela (Porta B).
     * **Tamanho:** `WIDTH_A = 8` (8 bits de dados, para escala de cinza) e `WIDTHAD_A = 17` (17 bits de endereço). Isso fornece 131.072 endereços, mais do que o suficiente para os 76.800 pixels (320x240) necessários.
-    * **Inicialização:** A memória é configurada para ser pré-carregada com o arquivo `../imagem_output.mif` durante a síntese. (que não é utilizada nesse projeto)
+    * **Inicialização:** A memória é configurada para ser pré-carregada com o arquivo `../imagem_output.mif` (que não é utilizada nesse projeto, pois a imagem é carregada via HPS).
 
-### `api_fpga.s` (A API de Hardware em Assembly)
+### 7.5. `api_fpga.s` (A API de Hardware em Assembly)
 
 Este é o arquivo de mais baixo nível da parte de software, atuando como o "driver" direto do nosso coprocessador.
 
 * **Propósito:** Fornecer funções que o código C (`menu.c`) pode chamar para interagir diretamente com o hardware da FPGA. Ele é escrito em Assembly (ARM) porque precisa de controle absoluto para ler e escrever em endereços de memória físicos (os PIOs).
+* **Funções Principais:**
+    * **`setup_memory_map()`**
+        * **Argumentos:** Nenhum.
+        * **Descrição:** Função de inicialização essencial. Mapeia os endereços de memória físicos dos PIOs (hardware da FPGA) para endereços de memória virtuais que o programa C pode aceder. **Deve ser chamada no início do programa.**
+    * **`cleanup_memory_map()`**
+        * **Argumentos:** Nenhum.
+        * **Descrição:** Função de finalização. Desfaz o mapeamento de memória (`munmap`) antes de o programa terminar, libertando os recursos.
+    * **`coproc_write_pixel(x, y, pixel_value)`**
+        * **Argumentos:** `x` (int), `y` (int), `pixel_value` (int).
+        * **Descrição:** Envia a instrução `STORE`. Calcula o endereço linear `(y * 320) + x` e envia o `opcode`, o `endereço` e o `pixel_value` para o hardware. Em seguida, pulsa o `enable` para iniciar a escrita na memória da FPGA.
+    * **`coproc_read_pixel(x, y, mem_select)`**
+        * **Argumentos:** `x` (int), `y` (int), `mem_select` (int).
+        * **Descrição:** Envia a instrução `LOAD`. Monta a instrução com o `opcode`, o `endereço` e o bit `mem_select`. Pulsa o `enable`, espera o hardware (chamando `coproc_wait_done`), lê o resultado do `pio_dataout` e retorna o valor do pixel lido.
+    * **`coproc_apply_zoom(algorithm_code)`**
+        * **Argumentos:** `algorithm_code` (int).
+        * **Descrição:** Envia uma instrução de algoritmo de zoom (ex: `INST_PR_ALG`) para o hardware. Esta versão não envia offsets, sendo usada para aplicar o zoom na imagem inteira.
+    * **`coproc_reset_image()`**
+        * **Argumentos:** Nenhum.
+        * **Descrição:** Envia a instrução `INST_RESET` para o hardware, fazendo com que a FSM recarregue a imagem original na memória de exibição.
+    * **`coproc_wait_done()`**
+        * **Argumentos:** Nenhum.
+        * **Descrição:** Função de bloqueio (sincronização). Entra num loop que lê continuamente o `pio_flags` até que o `FLAG_DONE` (bit 0) seja definido como 1 pelo hardware.
+    * **`coproc_apply_zoom_with_offset(algorithm_code, x_offset, y_offset)`**
+        * **Argumentos:** `algorithm_code` (int), `x_offset` (int), `y_offset` (int).
+        * **Descrição:** Envia uma instrução de zoom (como `INST_PR_ALG`) juntamente com os offsets X e Y. O hardware utiliza estes offsets para calcular a "janela" de zoom.
+    * **`coproc_pan_zoom_with_offset(algorithm_code, x_offset, y_offset)`**
+        * **Argumentos:** `algorithm_code` (int), `x_offset` (int), `y_offset` (int).
+        * **Descrição:** Similar à função anterior, mas também ativa o bit `SEL_MEM` (bit 20). Isto sinaliza ao hardware para executar uma operação de "pan" (mover a janela de zoom) em vez de aplicar um novo zoom.
 
-* **`setup_memory_map()`**
-    * **Argumentos:** Nenhum.
-    * **Descrição:** Função de inicialização essencial. Mapeia os endereços de memória físicos dos PIOs (hardware da FPGA) para endereços de memória virtuais que o programa C pode ler. **Deve ser chamada no início do programa.**
-
-* **`cleanup_memory_map()`**
-    * **Argumentos:** Nenhum.
-    * **Descrição:** Função de finalização. Desfaz o mapeamento de memória (`munmap`) antes de o programa terminar, liberando os recursos.
-
-* **`coproc_write_pixel(x, y, pixel_value)`**
-    * **Argumentos:** `x` (int), `y` (int), `pixel_value` (int).
-    * **Descrição:** Envia a instrução `STORE`. Calcula o endereço linear `(y * 320) + x` e envia o `opcode`, o `endereço` e o `pixel_value` para o hardware. Em seguida, pulsa o `enable` para iniciar a escrita na memória da FPGA.
-
-* **`coproc_read_pixel(x, y, mem_select)`**
-    * **Argumentos:** `x` (int), `y` (int), `mem_select` (int).
-    * **Descrição:** Envia a instrução `LOAD`. Monta a instrução com o `opcode`, o `endereço` e o bit `mem_select`. Pulsa o `enable`, espera o hardware (chamando `coproc_wait_done`), lê o resultado do `pio_dataout` e retorna o valor do pixel lido.
-
-* **`coproc_apply_zoom(algorithm_code)`**
-    * **Argumentos:** `algorithm_code` (int).
-    * **Descrição:** Envia uma instrução de algoritmo de zoom (ex: `INST_PR_ALG`) para o hardware. Esta versão não envia offsets, sendo usada para aplicar o zoom na imagem inteira.
-
-* **`coproc_reset_image()`**
-    * **Argumentos:** Nenhum.
-    * **Descrição:** Envia a instrução `INST_RESET` para o hardware, fazendo com que a FSM recarregue a imagem original na memória de exibição.
-
-* **`coproc_wait_done()`**
-    * **Argumentos:** Nenhum.
-    * **Descrição:** Função de bloqueio (sincronização). Entra num loop que lê continuamente o `pio_flags` até que o `FLAG_DONE` (bit 0) seja definido como 1 pelo hardware.
-
-* **`coproc_apply_zoom_with_offset(algorithm_code, x_offset, y_offset)`**
-    * **Argumentos:** `algorithm_code` (int), `x_offset` (int), `y_offset` (int).
-    * **Descrição:** Envia uma instrução de zoom (como `INST_PR_ALG`) juntamente com os offsets X e Y. O hardware utiliza estes offsets para calcular a "janela" de zoom.
-
-* **`coproc_pan_zoom_with_offset(algorithm_code, x_offset, y_offset)`**
-    * **Argumentos:** `algorithm_code` (int), `x_offset` (int), `y_offset` (int).
-    * **Descrição:** Similar à função anterior, mas também ativa o bit `SEL_MEM` (bit 20). Isto sinaliza ao hardware para executar uma operação de "pan" (mover a janela de zoom) em vez de aplicar um novo zoom.
-
-### `constantes.h` (O Dicionário do Projeto)
+### 7.6. `constantes.h` (O Dicionário do Projeto)
 
 Este é um arquivo de cabeçalho (header) C que serve como um "dicionário" central, garantindo que o `menu.c` (software) e o `main.v` (hardware) "falem a mesma língua".
 
@@ -271,17 +287,17 @@ Este é um arquivo de cabeçalho (header) C que serve como um "dicionário" cent
     * **Opcodes das Instruções:** Define os códigos de 3 bits para cada operação que a FSM do `main.v` entende (ex: `INST_LOAD 0b001`, `INST_PR_ALG 0b100`, `INST_RESET 0b111`).
     * **Máscaras de Flags:** Define máscaras de bits para facilitar a leitura do `pio_flags` (ex: `FLAG_DONE 0b0001`, `FLAG_ZOOM_MAX 0b0100`).
 
-### `menu.c` (A Aplicação Principal)
+### 7.7. `menu.c` (A Aplicação Principal)
 
 Este é o programa C principal que o usuário executa no terminal SSH do HPS.
 
 * **Propósito:** Fornecer a interface do usuário (o menu) e orquestrar as operações do coprocessador.
 * **Como Funciona:**
     1.  **Inclui Definições:** Inclui `constantes.h` para usar os nomes legíveis dos endereços e opcodes.
-    2.  **Declara Funções Assembly:** Declara os protótipos das funções que estão em `api_fpga.s` (ex: `extern void enviar_instrucao(int instrucao);`).
+    2.  **Declara Funções Assembly:** Declara os protótipos das funções que estão em `api_fpga.s` (ex: `extern void coproc_apply_zoom(int instrucao);`).
     3.  **Lógica do Menu:** Contém o loop principal (`while(1)`) que imprime o menu, espera o usuário digitar uma tecla (`getchar()`) e usa um `switch-case` para decidir o que fazer.
-    4.  **Chamada da API:** Quando o usuário pressiona uma tecla (ex: 'i' para zoom in), o `menu.c` chama as funções da API em Assembly (ex: `enviar_instrucao()`, `enviar_enable()`) e depois entra em um loop de espera, verificando o `ler_status()` até que o bit `FLAG_DONE` seja ativado pelo hardware.
-    5.  **Carregamento de Imagem:** A função para a tecla 'l' (Carregar Bitmap) abre o arquivo `.bmp`, lê o cabeçalho, e envia cada pixel para o hardware usando a instrução `INST_STORE` repetidamente.
+    4.  **Chamada da API:** Quando o usuário pressiona uma tecla (ex: 'i' para zoom in), o `menu.c` chama as funções da API em Assembly (ex: `coproc_apply_zoom()`) e depois entra em um loop de espera (chamando `coproc_wait_done()`) até que o bit `FLAG_DONE` seja ativado pelo hardware.
+    5.  **Carregamento de Imagem:** A função para a tecla 'l' (Carregar Bitmap) abre o arquivo `.bmp`, lê o cabeçalho, e envia cada pixel para o hardware usando a função `coproc_write_pixel()` repetidamente.
 
 ## 8. Testes e Validação
 Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento do redimensionamento da imagem por cada algoritmo após utilização de cada tecla
