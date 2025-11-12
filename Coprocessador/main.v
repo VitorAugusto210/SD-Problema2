@@ -23,7 +23,6 @@ module main(
     VGA_SYNC
 );
 
-
     input CLOCK_50;
     input [2:0] INSTRUCTION;
     input [7:0] DATA_IN;
@@ -42,13 +41,14 @@ module main(
     output [7:0] VGA_G;
     output VGA_BLANK_N;
     output VGA_H_SYNC_N; 
-    output VGA_V_SYNC_N; 
+    output VGA_V_SYNC_N;
     output VGA_CLK;
     output VGA_SYNC;
     //================================================================
     // 1. Definições, Clocks e Sinais
     //================================================================
     wire clk_100, clk_25_vga;
+
     pll pll0(
         .refclk(CLOCK_50), 
         .rst(1'b0), 
@@ -56,20 +56,28 @@ module main(
         .outclk_1(clk_25_vga)
     );
 
-    localparam REFRESH_SCREEN = 3'b000, LOAD = 3'b001, STORE = 3'b010, NHI_ALG = 3'b011;  //Instruções
-    localparam PR_ALG = 3'b100, BA_ALG = 3'b101, NH_ALG = 3'b110, RESET_INST = 3'b111;  //instruções
-    localparam IDLE = 3'b00, READ_AND_WRITE = 3'b001, ALGORITHM = 3'b010, RESET = 3'b011, COPY_READ = 3'b100, COPY_WRITE = 3'b101, WAIT_WR_OR_RD = 3'b111; // estados
+    localparam REFRESH_SCREEN = 3'b000, LOAD = 3'b001, STORE = 3'b010, NHI_ALG = 3'b011;
+    //Instruções
+    localparam PR_ALG = 3'b100, BA_ALG = 3'b101, NH_ALG = 3'b110, RESET_INST = 3'b111;
+    //instruções
+    localparam IDLE = 3'b00, READ_AND_WRITE = 3'b001, ALGORITHM = 3'b010, RESET = 3'b011, COPY_READ = 3'b100, COPY_WRITE = 3'b101, WAIT_WR_OR_RD = 3'b111;
+    // estados
 
     // --- Sinais de Controle da FSM ---
     reg [2:0] uc_state;
     reg [2:0] last_instruction;
 
+    // Registradores para armazenar os offsets de zoom/pan enviados pelo HPS
+    reg [16:0] zoom_x_offset; // Vem de MEM_ADDR (17 bits)
+    reg [7:0]  zoom_y_offset; // Vem de DATA_IN (8 bits)
+
     // --- Lógica de Gatilho ---
     reg  enable_ff;
     wire enable_pulse;
+
     always @(posedge clk_100) enable_ff <= !ENABLE;
     assign enable_pulse = !ENABLE && !enable_ff;
-    
+
     // --- Sinais do VGA ---
     wire [9:0] next_x, next_y;
     reg [16:0] addr_from_vga;
@@ -86,7 +94,7 @@ module main(
     reg        wren_mem1, wren_mem2;
     reg wren_mem3;
     wire [7:0] data_out_mem1, data_out_mem2, data_out_mem3;
-    
+
     //memoria que guarda a imagem original
     mem1 memory1(
         .rdaddress(addr_mem1), 
@@ -106,17 +114,18 @@ module main(
         .wren(wren_mem2), 
         .q(data_out_mem2)
     );
+
     //memoria de trabalho
     mem1 memory3(
-        .rdaddress(addr_mem3), // <-- Mudança aqui para permitir controle
+        .rdaddress(addr_mem3), 
         .wraddress(addr_for_write), 
         .clock(clk_100), 
-        .data(data_to_write), // <-- MUDANÇA PRINCIPAL: Usar o dado do algoritmo
+        .data(data_to_write), 
         .wren(wren_mem3), 
         .q(data_out_mem3)
     );
 
-    assign addr_mem1 = (uc_state != ALGORITHM && uc_state != WAIT_WR_OR_RD && uc_state != READ_AND_WRITE) ? addr_for_copy: addr_for_read; //teve mudança aqui
+    assign addr_mem1 = (uc_state != ALGORITHM && uc_state != WAIT_WR_OR_RD && uc_state != READ_AND_WRITE) ? addr_for_copy: addr_for_read;
 
     //================================================================
     // 3. Lógica do VGA
@@ -156,7 +165,6 @@ module main(
 
     reg [9:0] new_x, new_y;
     reg [9:0] old_x, old_y;
-
     reg [16:0] addr_for_read;
     reg [16:0] addr_for_write;
 
@@ -165,7 +173,6 @@ module main(
     reg [3:0] op_step;
 
     reg [31:0] data_to_avg;
-
     reg [7:0] data_to_write_mem1;
 
     assign FLAG_ZOOM_MAX = (current_zoom == 3'b111) ? 1'b1: 1'b0;
@@ -184,107 +191,130 @@ module main(
                 wren_mem2 <= 1'b0;
                 wren_mem3 <= 1'b0;
 
-
                 if (enable_pulse) begin
-                    //last_instruction <= INSTRUCTION;
                     counter_address <= 17'd0;
                     counter_rd_wr <= 2'b0;
                     if (INSTRUCTION == LOAD || INSTRUCTION == STORE) begin
                         uc_state         <= READ_AND_WRITE;
                         last_instruction <= INSTRUCTION;
                     end else if (INSTRUCTION >= NHI_ALG && INSTRUCTION <= NH_ALG) begin
-                            case (INSTRUCTION)
-                                NH_ALG:begin
-                                    if (FLAG_ZOOM_MIN) begin
-                                        FLAG_DONE <= 1'b1;
-                                        uc_state <= IDLE;
-                                    end else begin
-                                        next_zoom <=  current_zoom - 1'b1;
-                                        if (current_zoom == 3'b101) begin
-                                            uc_state <= COPY_READ;
-                                            last_instruction <= RESET_INST;
-                                        end
-                                        else if (current_zoom <= 3'b100) begin
-                                            last_instruction <= NH_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else if (next_zoom > 3'b100) begin
-                                            last_instruction <= NHI_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else begin
-                                            uc_state <= IDLE;
-                                        end
-                                    end
-                                end
-                                NHI_ALG: begin
-                                    if (FLAG_ZOOM_MAX) begin
-                                        FLAG_DONE <= 1'b1;
-                                        uc_state <= IDLE;
-                                    end else begin
-                                        next_zoom <= current_zoom + 1'b1;
-                                        if (current_zoom == 3'b011) begin
-                                            uc_state <= COPY_READ;
-                                            last_instruction <= RESET_INST;
-                                        end
-                                        else if (current_zoom >= 3'b100) begin
-                                            last_instruction <= NHI_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else if (next_zoom < 3'b100) begin
-                                            last_instruction <= NH_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else begin
-                                            uc_state <= IDLE;
-                                        end
-                                    end
-                                end
-                                BA_ALG:begin
-                                    if (FLAG_ZOOM_MIN) begin
-                                        FLAG_DONE <= 1'b1;
-                                        uc_state <= IDLE;
-                                    end else begin
-                                        next_zoom <=  current_zoom - 1'b1;
-                                        if (current_zoom == 3'b101) begin
-                                            uc_state <= COPY_READ;
-                                            last_instruction <= RESET_INST;
-                                        end
-                                        else if (current_zoom <= 3'b100) begin
-                                            last_instruction <= BA_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else if (current_zoom > 3'b100) begin
-                                            last_instruction <= PR_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else begin
-                                            uc_state <= IDLE;
-                                        end
-                                        
-                                    end
-                                end
-                                PR_ALG: begin
-                                    if (FLAG_ZOOM_MAX) begin
-                                        FLAG_DONE <= 1'b1;
-                                        uc_state <= IDLE;
-                                    end else begin
-                                        next_zoom <=  current_zoom + 1'b1;
-                                        if (current_zoom == 3'b011) begin
-                                            uc_state <= COPY_READ;
-                                            last_instruction <= RESET_INST;
-                                        end
-                                        else if (current_zoom >= 3'b100) begin
-                                            last_instruction <= PR_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else if (current_zoom < 3'b100) begin
-                                            last_instruction <= BA_ALG;
-                                            uc_state         <= ALGORITHM;
-                                        end else begin
-                                            uc_state <= IDLE;
-                                        end
-                                    
-                                    end
-                                end
-
-                            endcase
                             
-                            counter_address <= 17'd0;
-                            counter_rd_wr <= 2'b0;
+                        // Captura os offsets X e Y enviados pelo HPS
+                        zoom_x_offset <= MEM_ADDR; // X offset
+                        zoom_y_offset <= DATA_IN;  // Y offset
+
+                        case (INSTRUCTION)
+                            // --- (Zoom Out: NH_ALG) ---
+                            NH_ALG:begin
+                                if (FLAG_ZOOM_MIN) begin
+                                    FLAG_DONE <= 1'b1;
+                                    uc_state <= IDLE;
+                                end else begin
+                                    next_zoom <=  current_zoom - 1'b1;
+                                    if (current_zoom == 3'b101) begin
+                                        uc_state <= COPY_READ;
+                                        last_instruction <= RESET_INST;
+                                    end
+                                    else if (current_zoom <= 3'b100) begin
+                                        last_instruction <= NH_ALG;
+                                        uc_state         <= ALGORITHM;
+                                    end else if (next_zoom > 3'b100) begin
+                                        last_instruction <= NHI_ALG;
+                                        uc_state         <= ALGORITHM;
+                                    end else begin
+                                        uc_state <= IDLE;
+                                    end
+                                end
+                            end
+                            
+                            // --- (Zoom In / Pan: NHI_ALG) ---
+                            NHI_ALG: begin
+                                // SEL_MEM = 0 -> Zoom In
+                                // SEL_MEM = 1 -> Pan
+                                
+                                // Só bloqueia se for um ZOOM IN (SEL_MEM=0) e já estiver no máximo
+                                if (FLAG_ZOOM_MAX && !SEL_MEM) begin
+                                    FLAG_DONE <= 1'b1;
+                                    uc_state <= IDLE;
+                                end else begin
+                                    
+                                    if (SEL_MEM) begin // É um comando PAN
+                                        next_zoom <= current_zoom; // MANTÉM o nível de zoom
+                                    end else begin // É um comando ZOOM IN
+                                        next_zoom <= current_zoom + 1'b1; // INCREMENTA o nível de zoom
+                                    end
+
+                                    // Se estamos em 1x (3'b011) E é um ZOOM IN (não PAN),
+                                    // precisamos copiar a imagem original (mem1) para a memória de trabalho (mem3) primeiro.
+                                    if (current_zoom == 3'b011 && !SEL_MEM) begin
+                                        uc_state <= COPY_READ;
+                                        last_instruction <= RESET_INST; // RESET_INST copia mem1 -> mem3 (se não for STORE) -> mem2
+                                    end
+                                    else begin // Se já estamos com zoom OU se é um comando PAN
+                                        last_instruction <= NHI_ALG; // Aplica o algoritmo direto
+                                        uc_state         <= ALGORITHM;
+                                    end
+                                end
+                            end
+                            
+                            // --- (Zoom Out: BA_ALG) ---
+                            BA_ALG:begin
+                                if (FLAG_ZOOM_MIN) begin
+                                    FLAG_DONE <= 1'b1;
+                                    uc_state <= IDLE;
+                                end else begin
+                                    next_zoom <=  current_zoom - 1'b1;
+                                    if (current_zoom == 3'b101) begin
+                                        uc_state <= COPY_READ;
+                                        last_instruction <= RESET_INST;
+                                    end
+                                    else if (current_zoom <= 3'b100) begin
+                                        last_instruction <= BA_ALG;
+                                        uc_state         <= ALGORITHM;
+                                    end else if (current_zoom > 3'b100) begin
+                                        last_instruction <= PR_ALG;
+                                        uc_state         <= ALGORITHM;
+                                    end else begin
+                                        uc_state <= IDLE;
+                                    end
+                                    
+                                end
+                            end
+
+                            // --- (Zoom In / Pan: PR_ALG) ---
+                            PR_ALG: begin
+                                // SEL_MEM = 0 -> Zoom In
+                                // SEL_MEM = 1 -> Pan
+
+                                // Só bloqueia se for um ZOOM IN (SEL_MEM=0) e já estiver no máximo
+                                if (FLAG_ZOOM_MAX && !SEL_MEM) begin
+                                    FLAG_DONE <= 1'b1;
+                                    uc_state <= IDLE;
+                                end else begin
+                                
+                                    if (SEL_MEM) begin // É um comando PAN
+                                        next_zoom <= current_zoom; // MANTÉM o nível de zoom
+                                    end else begin // É um comando ZOOM IN
+                                        next_zoom <=  current_zoom + 1'b1; // INCREMENTA o nível de zoom
+                                    end
+
+                                    // Se estamos em 1x (3'b011) E é um ZOOM IN (não PAN),
+                                    // precisamos copiar a imagem original (mem1) para a memória de trabalho (mem3) primeiro.
+                                    if (current_zoom == 3'b011 && !SEL_MEM) begin
+                                        uc_state <= COPY_READ;
+                                        last_instruction <= RESET_INST; // RESET_INST copia mem1 -> mem3 (se não for STORE) -> mem2
+                                    end
+                                    else begin // Se já estamos com zoom OU se é um comando PAN
+                                        last_instruction <= PR_ALG; // Aplica o algoritmo direto
+                                        uc_state         <= ALGORITHM;
+                                    end
+                                end
+                            end
+
+                        endcase
+                        
+                        counter_address <= 17'd0;
+                        counter_rd_wr <= 2'b0;
                         
                     end else if (INSTRUCTION == RESET_INST) begin
                         last_instruction <= 3'b111;
@@ -294,7 +324,7 @@ module main(
                     end else if (INSTRUCTION == REFRESH_SCREEN) begin
                         last_instruction <= 3'b111;
                         uc_state <= COPY_READ;
-                        counter_address <= 17'b0;
+                        counter_address <= 17'd0;
                         counter_rd_wr <= 2'b0;
                     end
                 end
@@ -328,6 +358,7 @@ module main(
                 wren_mem1 <= 1'b0;
                 FLAG_DONE <= 1'b0;
                 case (last_instruction)
+                    // --- (Lógica do PR_ALG - usa zoom_x_offset e zoom_y_offset) ---
                     PR_ALG: begin
                         if (!has_alg_on_exec) begin
                             current_step <= 19'd0;
@@ -336,20 +367,10 @@ module main(
                             op_step <= 3'b0;
                             new_x <= 10'b0;
                             new_y <= 10'b0;
-
-                            if (next_zoom == 3'b101) begin
-                                old_x <= 10'd80;
-                                old_y <= 10'd60;
-                            end else if (next_zoom == 3'b110) begin
-                                old_x <= 10'd120;
-                                old_y <= 10'd90;
-                            end else if (next_zoom == 3'b111) begin
-                                old_x <= 10'd140;
-                                old_y <= 10'd105;
-                            end else begin
-                                old_x <= 10'd0;
-                                old_y <= 10'd0;
-                            end
+                            
+                            // O old_x/y inicial (para new_x=0, new_y=0) deve ser o offset
+                            old_x <= zoom_x_offset; 
+                            old_y <= zoom_y_offset;
 
                         end else begin
                             if (current_step >= needed_steps) begin
@@ -359,7 +380,6 @@ module main(
                                 wren_mem3 <= 1'b0;
                                 
                                 uc_state <= COPY_READ;
-
                             end else begin
                                 if (op_step == 3'b000) begin
                                     addr_for_read <= old_x + (old_y*10'd320);
@@ -399,20 +419,20 @@ module main(
                                     wren_mem3 <= 1'b1;
                                     op_step <= 3'b000;
                                     uc_state <= WAIT_WR_OR_RD;
+                                    
                                     if (new_x >= 10'd319) begin
                                         new_x <= 10'd0;
                                         new_y <= new_y + 1'b1;
 
                                         if (next_zoom == 3'b101) begin
-                                            old_x <= 10'd80;
-                                            old_y <= (new_y >> 2'b1) + 10'd60;
+                                            old_x <= zoom_x_offset;
+                                            old_y <= (new_y >> 2'b1) + zoom_y_offset;
                                         end else if (next_zoom == 3'b110) begin
-                                            old_x <= 10'd120;
-                                            old_y <= (new_y >> 2'd2) + 10'd90;
+                                            old_x <= zoom_x_offset;
+                                            old_y <= (new_y >> 2'd2) + zoom_y_offset;
                                         end else  if (next_zoom == 3'b111) begin
-                                            old_x <= 10'd140;
-                                            old_y <= (new_y>>2'd3) + 10'd105;
-
+                                            old_x <= zoom_x_offset;
+                                            old_y <= (new_y>>2'd3) + zoom_y_offset;
                                         end else begin
                                             old_x <= new_x;
                                             old_y <= new_y;
@@ -420,12 +440,13 @@ module main(
                                     end else begin
                                         new_x <= new_x + 1'b1;
                                         new_y <= new_y - 1'b1;
+                                        
                                         if (next_zoom == 3'b101) begin
-                                            old_x <= (new_x >> 1'b1) + 10'd80;
+                                            old_x <= (new_x >> 1'b1) + zoom_x_offset;
                                         end else if(next_zoom == 3'b110) begin
-                                            old_x <= (new_x >> 2'd2) + 10'd120;
+                                            old_x <= (new_x >> 2'd2) + zoom_x_offset;
                                         end else if (next_zoom == 3'b111) begin
-                                            old_x <= (new_x >> 2'd3) + 10'd140;
+                                            old_x <= (new_x >> 2'd3) + zoom_x_offset;
                                         end else begin
                                             old_x <= new_x;
                                         end
@@ -436,6 +457,7 @@ module main(
                         end
                     end
 
+                    // --- (Lógica do NHI_ALG - usa zoom_x_offset e zoom_y_offset) ---
                     NHI_ALG: begin
                         if (!has_alg_on_exec) begin
                             has_alg_on_exec <= 1'b1;
@@ -445,21 +467,8 @@ module main(
                             new_x <= 10'b0;
                             new_y <= 10'b0;
 
-                            if (next_zoom == 3'b101) begin
-                                old_x <= 10'd80;
-                                old_y <= 10'd60;
-
-                            end else if (next_zoom == 3'b110) begin
-                                old_x <= 10'd120;
-                                old_y <= 10'd90;
-                            end else if (next_zoom == 3'b111) begin
-                                old_x <= 10'd140;
-                                old_y <= 10'd105;
-                            end else begin
-                                old_x <= 10'd0;
-                                old_y <= 10'd0;
-                            end
-
+                            old_x <= zoom_x_offset;
+                            old_y <= zoom_y_offset;
 
                         end else begin
                             if (current_step >= needed_steps) begin
@@ -469,7 +478,6 @@ module main(
                                 wren_mem3 <= 1'b0;
                                 
                                 uc_state <= COPY_READ;
-
                             end else begin
                                 if (op_step == 3'b000) begin
                                     addr_for_read <= old_x + (old_y*10'd320);
@@ -485,18 +493,20 @@ module main(
                                     wren_mem3 <= 1'b1;
                                     op_step <= 3'b000;
                                     uc_state <= WAIT_WR_OR_RD;
+
                                     if (new_x >= 10'd319) begin
                                         new_x <= 10'd0;
                                         new_y <= new_y + 1'b1;
+                                        
                                         if (next_zoom == 3'b101) begin
-                                            old_x <= 10'd80;
-                                            old_y <= (new_y>>1'b1) + 10'd60;
+                                            old_x <= zoom_x_offset;
+                                            old_y <= (new_y>>1'b1) + zoom_y_offset;
                                         end else if (next_zoom == 3'b110) begin
-                                            old_x <= 10'd120;
-                                            old_y <= (new_y>>2'd2) + 10'd90;
+                                            old_x <= zoom_x_offset;
+                                            old_y <= (new_y>>2'd2) + zoom_y_offset;
                                         end else if (next_zoom == 3'b111) begin
-                                            old_x <= 10'd140;
-                                            old_y <= (new_y>>2'd3) + 10'd105;
+                                            old_x <= zoom_x_offset;
+                                            old_y <= (new_y>>2'd3) + zoom_y_offset;
                                         end else begin
                                             old_x <= new_x;
                                             old_y <= new_y;
@@ -504,12 +514,13 @@ module main(
                                         
                                     end else begin
                                         new_x <= new_x + 1'b1;
+                                        
                                         if (next_zoom == 3'b101) begin
-                                            old_x <= (new_x>>1'b1) + 10'd80;
+                                            old_x <= (new_x>>1'b1) + zoom_x_offset;
                                         end else if (next_zoom == 3'b110) begin
-                                            old_x <= (new_x>>2'd2) + 10'd120;
+                                            old_x <= (new_x>>2'd2) + zoom_x_offset;
                                         end else if (next_zoom == 3'b111) begin
-                                            old_x <= (new_x>>2'd3) + 10'd140;
+                                            old_x <= (new_x>>2'd3) + zoom_x_offset;
                                         end else begin
                                             old_x <= new_x;
                                         end
@@ -517,8 +528,9 @@ module main(
                                 end
                             end
                         end
-                    
                     end
+                    
+                    // --- (Lógicas de Zoom Out - sem mudanças) ---
                     BA_ALG: begin
                         if (!has_alg_on_exec) begin
                             has_alg_on_exec <= 1'b1;
@@ -537,9 +549,9 @@ module main(
                                 has_alg_on_exec <= 1'b0;
                                 wren_mem3 <= 1'b0;
                                 uc_state <= COPY_READ;
-
                             end else begin
-                                if ((((new_x < 10'd80 || new_x > 10'd239 ) || (new_y < 10'd60 ||  new_y > 10'd179)) && next_zoom == 3'b011) || (((new_x < 10'd120 || new_x > 10'd199 ) || (new_y < 10'd90 ||  new_y > 10'd149)) && next_zoom == 3'b010) || (((new_x < 10'd140 || new_x > 10'd179 ) || (new_y < 10'd105 ||  new_y > 10'd134)) && next_zoom == 3'b001)) begin
+                                if ((((new_x < 10'd80 || new_x > 10'd239 ) || (new_y < 10'd60 ||  new_y > 10'd179)) && next_zoom == 3'b011) || (((new_x < 10'd120 || new_x > 10'd199 ) || (new_y < 10'd90 ||  new_y > 10'd149)) && next_zoom == 3'b010) || (((new_x < 10'd140 || new_x > 10'd179 ) || (new_y < 10'd105 ||  new_y > 10'd134)) && next_zoom == 3'b001)) 
+                                begin
                                     current_step <= current_step + 1'b1;
                                     data_to_write <= 8'b0;
                                     counter_rd_wr <= 2'b0;
@@ -566,7 +578,6 @@ module main(
                                         end else if (next_zoom == 3'b001) begin
                                             old_x <= old_x + 3'd4;
                                         end
-
                                         op_step <= 3'b001;
                                     end else if (op_step == 3'b001) begin
                                         data_to_avg[7:0] <= data_out_mem1;
@@ -615,7 +626,6 @@ module main(
                                                 old_y <= old_y + 3'd4;
                                             end
                                         end else begin
-                                            
                                             if (next_zoom == 3'b011) begin
                                                 old_y <= old_y - 1'b1;
                                                 old_x <= old_x + 1'b1;
@@ -651,6 +661,7 @@ module main(
                             end
                         end
                     end
+                    
                     NH_ALG: begin
                         if (!has_alg_on_exec) begin
                             has_alg_on_exec <= 1'b1;
@@ -670,9 +681,9 @@ module main(
                                 wren_mem3 <= 1'b0;
                                 
                                 uc_state <= COPY_READ;
-
                             end else begin
-                                if ((((new_x < 10'd80 || new_x > 10'd239 ) || (new_y < 10'd60 ||  new_y > 10'd179)) && next_zoom == 3'b011) || (((new_x < 10'd120 || new_x > 10'd199 ) || (new_y < 10'd90 ||  new_y > 10'd149)) && next_zoom == 3'b010) || (((new_x < 10'd140 || new_x > 10'd179 ) || (new_y < 10'd105 ||  new_y > 10'd134)) && next_zoom == 3'b001)) begin
+                                if ((((new_x < 10'd80 || new_x > 10'd239 ) || (new_y < 10'd60 ||  new_y > 10'd179)) && next_zoom == 3'b011) || (((new_x < 10'd120 || new_x > 10'd199 ) || (new_y < 10'd90 ||  new_y > 10'd149)) && next_zoom == 3'b010) || (((new_x < 10'd140 || new_x > 10'd179 ) || (new_y < 10'd105 ||  new_y > 10'd134)) && next_zoom == 3'b001)) 
+                                begin
                                     current_step <= current_step + 1'b1;
                                     data_to_write <= 8'b0;
                                     counter_rd_wr <= 2'b0;
@@ -761,7 +772,7 @@ module main(
 
             COPY_READ: begin
                 if(counter_rd_wr == 2'b10) begin
-                    wren_mem2 <= 1'b0; // Garante que não estamos escrevendo nada ainda
+                    wren_mem2 <= 1'b0;
                     counter_rd_wr <= 2'b00;
                     uc_state <= COPY_WRITE;
                     
@@ -772,13 +783,15 @@ module main(
 
             COPY_WRITE: begin
 
+                // Se for RESET ou STORE, copia mem1 -> mem2
                 if (last_instruction == RESET_INST || last_instruction == STORE) begin
                     data_in_mem2 <= data_out_mem1;
+                // Se for um algoritmo (ex: PR_ALG, NHI_ALG, etc.), copia mem3 -> mem2
                 end else begin
                     data_in_mem2 <= data_out_mem3;
                 end
-                addr_wr_mem2 <= counter_address; // Define o endereço de escrita na MEM2
-                wren_mem2    <= 1'b1;             // Habilita a escrita na MEM2
+                addr_wr_mem2 <= counter_address;
+                wren_mem2    <= 1'b1;
                 
                 if (counter_rd_wr == 2'b10) begin
                     counter_rd_wr <= 2'b00;
@@ -788,8 +801,8 @@ module main(
                         uc_state <= IDLE; // Cópia concluída
                         
                     end else begin
-                        counter_address <= counter_address + 1'b1; // Incrementa para o próximo pixel
-                        uc_state <= COPY_READ; // Volta para o estado de leitura
+                        counter_address <= counter_address + 1'b1;
+                        uc_state <= COPY_READ;
                     end
                 end else begin
                     counter_rd_wr <= counter_rd_wr + 1;
@@ -829,10 +842,11 @@ module main(
     reg [16:0] addr_for_copy;
 
     always @(*) begin
-          // Endereçamento
-
+        // Endereçamento
+        // Se for um RESET ou STORE, a cópia (leitura) vem da mem1
         if (last_instruction == RESET_INST || last_instruction == STORE) begin
             addr_for_copy <= counter_address;
+        // Se for um algoritmo, a cópia (leitura) vem da mem3
         end else begin
             addr_mem3 <= counter_address;
         end
@@ -860,5 +874,5 @@ module main(
     .sync(VGA_SYNC), 
     .clk(VGA_CLK), 
     .blank(VGA_BLANK_N));
-
+    
 endmodule
