@@ -286,23 +286,21 @@ Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento 
 
 **Vizinho Mais Próximo**
 
-![vizinho-mais-proximo](imgs/selecao-janela.gif)
+![vizinho-mais-proximo](imgs/vizinho-proximo.gif)
 
 **Replicação de Pixel**
 
-![vizinho-mais-proximo](imgs/selecao-janela.gif)
+![vizinho-mais-proximo](imgs/replicacao-pixel.gif)
 
 ### 8.2. Teste de Zoom Out
 
-*Demonstre a aplicação do zoom out. Compare o resultado dos dois algoritmos implementados.*
-
 **Média de Blocos**
 
-![vizinho-mais-proximo](imgs/selecao-janela.gif)
+![vizinho-mais-proximo](imgs/media-blocos.gif)
 
 **Decimação**
 
-![vizinho-mais-proximo](imgs/selecao-janela.gif)
+![decimação](imgs/decimacao.gif)
 
 ### 8.3 Seleção de "Janela" de Zoom
 
