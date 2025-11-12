@@ -49,11 +49,15 @@ Esta seção detalha a teoria por trás dos algoritmos de redimensionamento de i
 
 Aproximar uma imagem significa criar novos pixels onde antes não existia informação.
 
-* **Replicação de Pixel [RF04] / Vizinho Mais Próximo [RF03]**
-    * No contexto de um zoom 2x, ambos são funcionalmente idênticos.
-    * **Teoria:** A Replicação de Pixel, para um zoom 2x, simplesmente "estica" a imagem, fazendo com que cada pixel original se torne um bloco de 2x2 pixels na imagem de destino.
-    * **Funcionamento:** Um pixel na posição `(x, y)` da imagem original é replicado para as posições `(2x, 2y)`, `(2x+1, 2y)`, `(2x, 2y+1)` e `(2x+1, 2y+1)` da imagem de destino.
-    * **Resultado:** É um algoritmo computacionalmente leve (rápido), mas que produz um resultado "serrilhado" ou "pixelado", com bordas visivelmente quadradas.
+* **Vizinho Mais Próximo (Nearest Neighbor) [RF03]**
+    * **Teoria:** Este é o algoritmo de interpolação mais simples. Para cada pixel na imagem de destino (maior), ele calcula qual seria a sua coordenada correspondente na imagem original.
+    * **Funcionamento:** O algoritmo arredonda essa coordenada para o número inteiro "vizinho mais próximo" (ex: 2.5 torna-se 3) e simplesmente copia o valor do pixel dessa posição.
+    * **Resultado:** É computacionalmente muito leve e rápido, mas produz um resultado "serrilhado" ou "pixelado", com bordas visivelmente quadradas.
+
+* **Replicação de Pixel [RF04]**
+    * **Teoria:** Este método é uma forma de *upscaling* que foca em duplicar a informação existente, em vez de interpolar.
+    * **Funcionamento:** Para um zoom 2x, o algoritmo simplesmente "estica" a imagem, fazendo com que cada pixel original na posição `(x, y)` se torne um bloco de 2x2 pixels idênticos na imagem de destino, preenchendo as posições `(2x, 2y)`, `(2x+1, 2y)`, `(2x, 2y+1)` e `(2x+1, 2y+1)`.
+    * **Resultado:** No contexto de um zoom 2x, o resultado visual é **idêntico** ao do Vizinho Mais Próximo. É igualmente rápido e resulta em bordas pixeladas.
 
 ### 4.2. Zoom Out (Redução)
 
