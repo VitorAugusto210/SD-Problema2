@@ -68,6 +68,32 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
     * Selecione o arquivo `.sof` gerado e programe a placa.
     * Clique em "Start" e as instruções serão repassadas a placa.
 
+5. **Conectando e configurando o HPS via SSH**
+    * Abra o terminal do Linux e executa as seguintes instruções
+    ```bash
+        ssh aluno@172.65.213.<Digitos finais da Placa utilizada>
+        # Forneça da maquina assim que solicitada
+        nano
+        # Após abrir o terminal do nano, cole as informações do arquivo api_fpga.S, finalize e salve com o mesmo nome
+
+        nano
+        # Após abrir o terminal do nano, cole as informações do arquivo constantes.h, finalize e salve com o mesmo nome
+
+        nano
+        # Após abrir o terminal do nano, cole as informações do arquivo menu.c, finalize e salve com o mesmo nome
+
+        gcc -E -x assembler-with-cpp -o api_fpga.pp.s api_fpga.s # Pré-processamento o Assembly
+        as -o api_fpga.o api_fpga.pp.s # Montar (Assemble) o arquivo pré-processado
+        gcc -std=c99 -c -o menu_final.o menu_final.c # Compilar o C
+        gcc -o programa_final menu_final.o api_fpga.o # Linkar Tudo Este comando junta os dois arquivos objeto (menu_final.o e api_fpga.o) e cria o programa
+
+        scp /<Diretorio da imagem em bitmap> aluno@172.65.213.<Digitos finais da Placa utilizada>:/home/aluno/ # Enviar a imagem para a FPGA
+
+        sudo ./programa_final # Para rodar o programa
+
+        (ADICIONAR AQUI MENU?)
+    ```
+
 ## 5. Manual do Usuário
 
 | Teclas | Ação |
