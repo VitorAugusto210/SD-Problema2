@@ -88,10 +88,10 @@ Abaixo consta a descrição de cada modulo criado para a solução do projeto.
 
 Este arquivo, criado no Platform Designer (Qsys), define o sistema de processamento principal e sua conexão com a lógica da FPGA.
 
-* **Propósito:** Configurar o processador **ARM (HPS)** e criar a ponte de comunicação (barramento Avalon) entre o software (executando no HPS) e o hardware (nosso coprocessador na FPGA).
+* **Propósito:** Configurar o processador **ARM (HPS)** e criar a ponte de comunicação (barramento Avalon) entre o software (executando no HPS) e o hardware (Coprocessador na FPGA).
 * **Componentes Chave:**
-    * `hps_0`: O próprio Hard Processor System (HPS), que gerencia a memória DDR3 e os periféricos principais.
-    * `h2f_lw_axi_master`: A ponte "Lightweight HPS-to-FPGA" (Ponte Leve HPS-para-FPGA). É através deste barramento que o HPS envia comandos para o coprocessador.
+    * `hps_0`: O próprio Hard Processor System (HPS), que gerencia a memória e os periféricos principais.
+    * `h2f_lw_axi_master`: A ponte "Lightweight HPS-to-FPGA". É através deste barramento que o HPS envia comandos para o coprocessador.
 * **Interface de Comunicação (PIOs):** A comunicação entre o HPS e o coprocessador é realizada através de quatro periféricos PIO, que são mapeados em endereços de memória específicos para o HPS:
     * `pio_instruct` (Saída, 29 bits): Mapeado em `0x0000`. Usado pelo HPS para enviar o barramento completo de instrução (opcode, endereço de memória e valor) para o coprocessador.
     * `pio_enable` (Saída, 1 bit): Mapeado em `0x0010`. Usado pelo HPS para enviar um pulso de "enable" (habilitação) que inicia a operação no coprocessador.
@@ -137,6 +137,40 @@ Este arquivo é um invólucro (wrapper) para um bloco de memória `altsyncram`, 
     * **Modo:** `DUAL_PORT`. Isso é crucial, pois permite que a FSM escreva na memória (Porta A) ao mesmo tempo em que o controlador VGA lê dela (Porta B).
     * **Tamanho:** `WIDTH_A = 8` (8 bits de dados, para escala de cinza) e `WIDTHAD_A = 17` (17 bits de endereço). Isso fornece 131.072 endereços, mais do que o suficiente para os 76.800 pixels (320x240) necessários.
     * **Inicialização:** A memória é configurada para ser pré-carregada com o arquivo `../imagem_output.mif` durante a síntese.
+
+### `api_fpga.s` (A API de Hardware em Assembly)
+
+Este é o arquivo de mais baixo nível da parte de software, atuando como o "driver" direto do nosso coprocessador.
+
+* **Propósito:** Fornecer funções que o código C (`menu.c`) pode chamar para interagir diretamente com o hardware da FPGA. Ele é escrito em Assembly (ARM) porque precisa de controle absoluto para ler e escrever em endereços de memória físicos (os PIOs).
+* **Funções Principais:**
+    * `escrever_pio(endereco, valor)`: Escreve um valor em um dos endereços de PIO.
+    * `ler_pio(endereco)`: Lê o valor de um dos endereços de PIO.
+    * `enviar_instrucao(opcode, mem_addr, data_in)`: Monta a palavra de instrução de 29 bits e a escreve no `pio_instruct`.
+    * `enviar_enable()`: Gera o pulso de 1 ciclo no `pio_enable` para iniciar uma operação na FSM do hardware.
+    * `ler_status()`: Lê o `pio_flags` para verificar o status da operação (ex: `FLAG_DONE`).
+
+### `constantes.h` (O Dicionário do Projeto)
+
+Este é um arquivo de cabeçalho (header) C que serve como um "dicionário" central, garantindo que o `menu.c` (software) e o `main.v` (hardware) "falem a mesma língua".
+
+* **Propósito:** Definir nomes legíveis para todos os valores numéricos do projeto, como endereços de hardware e códigos de instrução.
+* **Definições Contidas:**
+    * **Endereços dos PIOs:** Define os endereços físicos dos registradores PIO criados no Qsys (ex: `PIO_INSTRUCT_BASE 0x0000`, `PIO_FLAGS_BASE 0x0030`).
+    * **Opcodes das Instruções:** Define os códigos de 3 bits para cada operação que a FSM do `main.v` entende (ex: `INST_LOAD 0b001`, `INST_PR_ALG 0b100`, `INST_RESET 0b111`).
+    * **Máscaras de Flags:** Define máscaras de bits para facilitar a leitura do `pio_flags` (ex: `FLAG_DONE 0b0001`, `FLAG_ZOOM_MAX 0b0100`).
+
+### `menu.c` (A Aplicação Principal)
+
+Este é o programa C principal que o usuário executa no terminal SSH do HPS.
+
+* **Propósito:** Fornecer a interface do usuário (o menu) e orquestrar as operações do coprocessador.
+* **Como Funciona:**
+    1.  **Inclui Definições:** Inclui `constantes.h` para usar os nomes legíveis dos endereços e opcodes.
+    2.  **Declara Funções Assembly:** Declara os protótipos das funções que estão em `api_fpga.s` (ex: `extern void enviar_instrucao(int instrucao);`).
+    3.  **Lógica do Menu:** Contém o loop principal (`while(1)`) que imprime o menu, espera o usuário digitar uma tecla (`getchar()`) e usa um `switch-case` para decidir o que fazer.
+    4.  **Chamada da API:** Quando o usuário pressiona uma tecla (ex: 'i' para zoom in), o `menu.c` chama as funções da API em Assembly (ex: `enviar_instrucao()`, `enviar_enable()`) e depois entra em um loop de espera, verificando o `ler_status()` até que o bit `FLAG_DONE` seja ativado pelo hardware.
+    5.  **Carregamento de Imagem:** A função para a tecla 'l' (Carregar Bitmap) abre o arquivo `.bmp`, lê o cabeçalho, e envia cada pixel para o hardware usando a instrução `INST_STORE` repetidamente.
 
 ## 7. Testes e Validação
 Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento do redimensionamento da imagem por cada algoritmo após utilização de cada tecla
