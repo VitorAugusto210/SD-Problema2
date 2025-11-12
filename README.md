@@ -10,7 +10,7 @@ A base do codigo em Verilog foi fornecida pelo seguinte repositório: <https://g
 
 ## 2. Definição do Problema
 
-O tema central deste problema é a **Programação Assembly e a construção de um driver de software** para a interface hardware-software.
+O tema deste problema é a **Programação Assembly e a construção de um driver de software** para a interface hardware-software.
 
 O objetivo é projetar um **módulo embarcado de redimensionamento de imagens** (zoom in/out) para sistemas de vigilância e exibição em tempo real.
 
@@ -29,7 +29,7 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
 * **RF04:** O algoritmo de **Replicação de Pixel** deve ser implementado para a aproximação.
 * **RF05:** O algoritmo de **Decimação/Amostragem** deve ser implementado para a redução.
 * **RF06:** O algoritmo de **Média de Blocos** deve ser implementado para a redução.
-* **RF07:** A seleção da operação (zoom in/out) deve ser controlada por chaves e/ou botões da placa.
+* **RF07:** A seleção da operação (zoom in/out) deve ser controlada pelo teclado do computador integrado a placa pelo HPS.
 * **RF08:** A imagem processada deve ser exibida em um monitor através da saída VGA.
 
 ### 3.2. Requisitos Não Funcionais
@@ -39,18 +39,18 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
 * **RNF03:** As imagens devem ser representadas em escala de cinza, com cada pixel codificado por um inteiro de 8 bits.
 * **RNF04:** O coprocessador deve ser compatível com o processador ARM (Hard Processor System - HPS) para viabilizar o desenvolvimento da solução.
 * **RNF05:** A imagem deve ser lida a partir de um arquivo e transferida para o coprocessador;
-* **RNF06:** Deverão ser implementados na API os comandos da ISA do coprocessador. [cite_start]As instruções devem utilizar as operações que foram anteriormente implementadas via chaves e botões na placa (vide Problema 1); [cite: 644-645]
+* **RNF06:** Deverão ser implementados na API os comandos da ISA do coprocessador. As instruções devem utilizar as operações que foram anteriormente implementadas via chaves e botões na placa (vide Problema 1);
 
 ## 4. Fundamentação Teórica
 
-Esta seção detalha a teoria por trás dos algoritmos de redimensionamento de imagem implementados, conforme solicitado pelos requisitos.
+Esta seção detalha a teoria por trás dos algoritmos de redimensionamento de imagem implementados.
 
 ### 4.1. Zoom In (Aproximação)
 
 Aproximar uma imagem significa criar novos pixels onde antes não existia informação.
 
 * **Replicação de Pixel [RF04] / Vizinho Mais Próximo [RF03]**
-    * Estes são os métodos mais simples e rápidos de aproximação. No contexto de um zoom 2x, ambos são funcionalmente idênticos.
+    * No contexto de um zoom 2x, ambos são funcionalmente idênticos.
     * **Teoria:** A Replicação de Pixel, para um zoom 2x, simplesmente "estica" a imagem, fazendo com que cada pixel original se torne um bloco de 2x2 pixels na imagem de destino.
     * **Funcionamento:** Um pixel na posição `(x, y)` da imagem original é replicado para as posições `(2x, 2y)`, `(2x+1, 2y)`, `(2x, 2y+1)` e `(2x+1, 2y+1)` da imagem de destino.
     * **Resultado:** É um algoritmo computacionalmente leve (rápido), mas que produz um resultado "serrilhado" ou "pixelado", com bordas visivelmente quadradas.
@@ -163,7 +163,7 @@ Abaixo consta a descrição de cada modulo criado para a solução do projeto.
 
 ### `soc_system.qsys` (Sistema HPS e Barramento)
 
-Este arquivo, criado no Platform Designer (Qsys), define o sistema de processamento principal e sua conexão com a lógica da FPGA.
+Criado no Platform Designer (Qsys), ele define o sistema de processamento principal e sua conexão com a lógica da FPGA.
 
 * **Propósito:** Configurar o processador **ARM (HPS)** e criar a ponte de comunicação (barramento Avalon) entre o software (executando no HPS) e o hardware (Coprocessador na FPGA).
 * **Componentes Chave:**
@@ -207,13 +207,13 @@ Este é o coração da lógica de FPGA customizada. Ele contém toda a lógica d
 
 ### `mem1.v` (Módulo de Memória)
 
-Este arquivo é um invólucro (wrapper) para um bloco de memória `altsyncram`, gerado pelo MegaFunction Wizard da Intel.
+Este arquivo é um wrapper para um bloco de memória `altsyncram`, gerado pelo MegaFunction Wizard da Intel.
 
 * **Propósito:** Definir um bloco de memória RAM síncrona de porta dupla (Dual-Port).
 * **Configuração:**
     * **Modo:** `DUAL_PORT`. Isso é crucial, pois permite que a FSM escreva na memória (Porta A) ao mesmo tempo em que o controlador VGA lê dela (Porta B).
     * **Tamanho:** `WIDTH_A = 8` (8 bits de dados, para escala de cinza) e `WIDTHAD_A = 17` (17 bits de endereço). Isso fornece 131.072 endereços, mais do que o suficiente para os 76.800 pixels (320x240) necessários.
-    * **Inicialização:** A memória é configurada para ser pré-carregada com o arquivo `../imagem_output.mif` durante a síntese.
+    * **Inicialização:** A memória é configurada para ser pré-carregada com o arquivo `../imagem_output.mif` durante a síntese. (que não é utilizada nesse projeto)
 
 ### `api_fpga.s` (A API de Hardware em Assembly)
 
