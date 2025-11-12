@@ -142,8 +142,6 @@ Esta seção descreve como instalar, configurar e operar o sistema, servindo com
         sudo ./programa_final # Comando para rodar o programa
         ```
 
-    * Após isso ira aparecer um menu contendo todas as ações possiveis
-
 ### 6.2. Comandos de Operação
 
 Após executar o programa (`sudo ./programa_final`), os seguintes comandos estão disponíveis:
@@ -222,12 +220,42 @@ Este arquivo é um invólucro (wrapper) para um bloco de memória `altsyncram`, 
 Este é o arquivo de mais baixo nível da parte de software, atuando como o "driver" direto do nosso coprocessador.
 
 * **Propósito:** Fornecer funções que o código C (`menu.c`) pode chamar para interagir diretamente com o hardware da FPGA. Ele é escrito em Assembly (ARM) porque precisa de controle absoluto para ler e escrever em endereços de memória físicos (os PIOs).
-* **Funções Principais:**
-    * `escrever_pio(endereco, valor)`: Escreve um valor em um dos endereços de PIO.
-    * `ler_pio(endereco)`: Lê o valor de um dos endereços de PIO.
-    * `enviar_instrucao(opcode, mem_addr, data_in)`: Monta a palavra de instrução de 29 bits e a escreve no `pio_instruct`.
-    * `enviar_enable()`: Gera o pulso de 1 ciclo no `pio_enable` para iniciar uma operação na FSM do hardware.
-    * `ler_status()`: Lê o `pio_flags` para verificar o status da operação (ex: `FLAG_DONE`).
+
+* **`setup_memory_map()`**
+    * **Argumentos:** Nenhum.
+    * **Descrição:** Função de inicialização essencial. Mapeia os endereços de memória físicos dos PIOs (hardware da FPGA) para endereços de memória virtuais que o programa C pode ler. **Deve ser chamada no início do programa.**
+
+* **`cleanup_memory_map()`**
+    * **Argumentos:** Nenhum.
+    * **Descrição:** Função de finalização. Desfaz o mapeamento de memória (`munmap`) antes de o programa terminar, liberando os recursos.
+
+* **`coproc_write_pixel(x, y, pixel_value)`**
+    * **Argumentos:** `x` (int), `y` (int), `pixel_value` (int).
+    * **Descrição:** Envia a instrução `STORE`. Calcula o endereço linear `(y * 320) + x` e envia o `opcode`, o `endereço` e o `pixel_value` para o hardware. Em seguida, pulsa o `enable` para iniciar a escrita na memória da FPGA.
+
+* **`coproc_read_pixel(x, y, mem_select)`**
+    * **Argumentos:** `x` (int), `y` (int), `mem_select` (int).
+    * **Descrição:** Envia a instrução `LOAD`. Monta a instrução com o `opcode`, o `endereço` e o bit `mem_select`. Pulsa o `enable`, espera o hardware (chamando `coproc_wait_done`), lê o resultado do `pio_dataout` e retorna o valor do pixel lido.
+
+* **`coproc_apply_zoom(algorithm_code)`**
+    * **Argumentos:** `algorithm_code` (int).
+    * **Descrição:** Envia uma instrução de algoritmo de zoom (ex: `INST_PR_ALG`) para o hardware. Esta versão não envia offsets, sendo usada para aplicar o zoom na imagem inteira.
+
+* **`coproc_reset_image()`**
+    * **Argumentos:** Nenhum.
+    * **Descrição:** Envia a instrução `INST_RESET` para o hardware, fazendo com que a FSM recarregue a imagem original na memória de exibição.
+
+* **`coproc_wait_done()`**
+    * **Argumentos:** Nenhum.
+    * **Descrição:** Função de bloqueio (sincronização). Entra num loop que lê continuamente o `pio_flags` até que o `FLAG_DONE` (bit 0) seja definido como 1 pelo hardware.
+
+* **`coproc_apply_zoom_with_offset(algorithm_code, x_offset, y_offset)`**
+    * **Argumentos:** `algorithm_code` (int), `x_offset` (int), `y_offset` (int).
+    * **Descrição:** Envia uma instrução de zoom (como `INST_PR_ALG`) juntamente com os offsets X e Y. O hardware utiliza estes offsets para calcular a "janela" de zoom.
+
+* **`coproc_pan_zoom_with_offset(algorithm_code, x_offset, y_offset)`**
+    * **Argumentos:** `algorithm_code` (int), `x_offset` (int), `y_offset` (int).
+    * **Descrição:** Similar à função anterior, mas também ativa o bit `SEL_MEM` (bit 20). Isto sinaliza ao hardware para executar uma operação de "pan" (mover a janela de zoom) em vez de aplicar um novo zoom.
 
 ### `constantes.h` (O Dicionário do Projeto)
 
