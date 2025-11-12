@@ -6,6 +6,8 @@ Este projeto foi desenvolvido como parte da avaliação da disciplina de Sistema
 
 Nesta etapa, o sistema passa a ser controlado pelo processador HPS (ARM) , que executa uma aplicação em C. Esta aplicação, acessada pelo usuário via terminal SSH, aceita comandos do teclado e utiliza a API em Assembly para enviar os comandos de processamento ao coprocessador na FPGA.
 
+A base do codigo em Verilog foi fornecida pelo seguinte repositório: <https://github.com/DestinyWolf/Problema-SD-2025-2> com devida permissão do Autor.
+
 ## 2. Definição do Problema
 
 O tema central deste problema é a **Programação Assembly e a construção de um driver de software** para a interface hardware-software.
@@ -83,7 +85,11 @@ Reduzir uma imagem significa descartar informações (pixels) de forma inteligen
 | Monitor | Monitor com entrada VGA. |
 | Computador | Para compilação do projeto e controle do Zoom In e Zoom Out |
 
-## 6. Instalação e Configuração
+## 6. Manual do Usuário
+
+Esta seção descreve como instalar, configurar e operar o sistema, servindo como o manual do usuário do projeto.
+
+### 6.1. Instalação e Configuração
 
 1.  **Clonar o Repositório:**
     ```bash
@@ -123,44 +129,38 @@ Reduzir uma imagem significa descartar informações (pixels) de forma inteligen
         nano menu.c
         # (Cole o conteúdo do arquivo e salve)
         ```
-    * Compile o software no HPS:
-        ```bash
-        # Pré-processamento o Assembly
-        gcc -E -x assembler-with-cpp -o api_fpga.pp.s api_fpga.s
-        
-        # Montar (Assemble) o arquivo pré-processado
-        as -o api_fpga.o api_fpga.pp.s
-        
-        # Compilar o C
-        gcc -std=c99 -c -o menu.o menu.c
-        
-        # Linkar Tudo
-        gcc -o programa_final menu.o api_fpga.o
-        ```
+    
     * Transfira a imagem bitmap desejada para a placa:
         ```bash
         # Em um terminal no SEU computador
         scp /<Diretorio da imagem em bitmap> aluno@172.65.213.<...>:~/
         ```
-    * Execute o programa:
+
+    * Compile o software no HPS:
         ```bash
-        sudo ./programa_final
+        make # Makefile que faz toda compilação
+        sudo ./programa_final # Comando para rodar o programa
         ```
 
-## 7. Manual do Usuário
+    * Após isso ira aparecer um menu contendo todas as ações possiveis
+
+### 6.2. Comandos de Operação
+
+Após executar o programa (`sudo ./programa_final`), os seguintes comandos estão disponíveis:
 
 | Teclas | Ação |
 | :--- | :--- |
+| Setas | Direcionar a "janela" de Zoom |
 | "i" ou + | Selecionar Zoom In |
 | "o" ou - | Selecionar Zoom Out |
-| "n" | Alternar Modo de Zoom In |
-| "m" | Alternar Modo de Zoom Out |
-| "l" | Carregar nova imagem em Bitmap |
-| "r" | Resetar imagem (recarrega da original) |
+| "n" | Alternar Modo de Zoom In *Note que após alterar, o menu irá ser modificado, mostrando o algoritmo de seleção atual |
+| "m" | Alternar Modo de Zoom Out *Note que após alterar, o menu irá ser modificado, mostrando o algoritmo de seleção atual |
+| "l" | Carregar nova imagem em Bitmap *Imagem precisa estar dentro da placa |
+| "r" | Resetar imagem (recarrega para a imagem no formato original) |
 | "h" | Voltar para o Menu Inicial |
 | "q" | Sair do programa. |
 
-## 8. Descrição da Solução
+## 7. Descrição da Solução
 Abaixo consta a descrição de cada modulo criado para a solução do projeto.
 
 ### `soc_system.qsys` (Sistema HPS e Barramento)
@@ -251,28 +251,38 @@ Este é o programa C principal que o usuário executa no terminal SSH do HPS.
     4.  **Chamada da API:** Quando o usuário pressiona uma tecla (ex: 'i' para zoom in), o `menu.c` chama as funções da API em Assembly (ex: `enviar_instrucao()`, `enviar_enable()`) e depois entra em um loop de espera, verificando o `ler_status()` até que o bit `FLAG_DONE` seja ativado pelo hardware.
     5.  **Carregamento de Imagem:** A função para a tecla 'l' (Carregar Bitmap) abre o arquivo `.bmp`, lê o cabeçalho, e envia cada pixel para o hardware usando a instrução `INST_STORE` repetidamente.
 
-## 9. Testes e Validação
+## 8. Testes e Validação
 Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento do redimensionamento da imagem por cada algoritmo após utilização de cada tecla
 
-### 9.1. Teste de Zoom In
+### 8.1. Teste de Zoom In
 
-**Imagem Original vs. Vizinho Mais Próximo vs. Replicação de Pixel**
+**Vizinho Mais Próximo**
 
-| Original | Vizinho Mais Próximo | Replicação de Pixel |
-| :--- | :--- | :--- |
-| inserir aqui imagem| inserir aqui gif | inserir aqui gif |
+![vizinho-mais-proximo](imgs/selecao-janela.gif)
 
-### 9.2. Teste de Zoom Out
+**Replicação de Pixel**
+
+![vizinho-mais-proximo](imgs/selecao-janela.gif)
+
+### 8.2. Teste de Zoom Out
 
 *Demonstre a aplicação do zoom out. Compare o resultado dos dois algoritmos implementados.*
 
-**Imagem Original vs. Decimação vs. Média de Blocos**
+**Média de Blocos**
 
-| Original | Decimação | Média de Blocos |
-| :--- | :--- | :--- |
-| inserir aqui imagem | inserir aqui gif | inserir aqui gif |
+![vizinho-mais-proximo](imgs/selecao-janela.gif)
 
-## 10. Análise dos Resultados
+**Decimação**
+
+![vizinho-mais-proximo](imgs/selecao-janela.gif)
+
+### 8.3 Seleção de "Janela" de Zoom
+
+![seleção-janela-zoom](imgs/selecao-janela.gif)
+
+
+
+## 9. Análise dos Resultados
 
 * **Comparativo Visual:** Zoom In: Ambos algoritmos não apresentaram diferenças visiveis tanto na imagem original quanto na imagem original amplificada.
 Zoom Out: Ambos algoritmos não apresentaram diferenças visiveis tanto na imagem original quanto na imagem original diminuida.
