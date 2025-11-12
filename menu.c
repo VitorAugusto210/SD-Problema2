@@ -86,8 +86,8 @@ int load_bmp_image(char *filename) {
     
     printf("Iniciando transferência para a FPGA...\n");
 
-    for (int y = height - 1; y >= 0; y--) { // Declaração C99
-        for (int x = 0; x < width; x++) { // Declaração C99
+    for (int y = height - 1; y >= 0; y--) { 
+        for (int x = 0; x < width; x++) { 
             
             uint8_t gray_pixel;
             if (fread(&gray_pixel, 1, 1, file) < 1) {
@@ -243,22 +243,22 @@ void enter_control_loop() {
                     case 0x41: // Seta para Cima
                         g_zoom_offset_y = (g_zoom_offset_y >= MOVE_STEP) ? (g_zoom_offset_y - MOVE_STEP) : 0;
                         printf("Nova posição do cursor: (%d, %d)\n", g_zoom_offset_x, g_zoom_offset_y);
-                        aplicar_pan_na_posicao_atual(); // Chama a função de PAN
+                        aplicar_pan_na_posicao_atual();
                         break;
                     case 0x42: // Seta para Baixo
                         g_zoom_offset_y = (g_zoom_offset_y + MOVE_STEP < IMG_HEIGHT) ? (g_zoom_offset_y + MOVE_STEP) : g_zoom_offset_y;
                         printf("Nova posição do cursor: (%d, %d)\n", g_zoom_offset_x, g_zoom_offset_y);
-                        aplicar_pan_na_posicao_atual(); // Chama a função de PAN
+                        aplicar_pan_na_posicao_atual();
                         break;
                     case 0x43: // Seta para Direita
                         g_zoom_offset_x = (g_zoom_offset_x + MOVE_STEP < IMG_WIDTH) ? (g_zoom_offset_x + MOVE_STEP) : g_zoom_offset_x;
                         printf("Nova posição do cursor: (%d, %d)\n", g_zoom_offset_x, g_zoom_offset_y);
-                        aplicar_pan_na_posicao_atual(); // Chama a função de PAN
+                        aplicar_pan_na_posicao_atual(); 
                         break;
                     case 0x44: // Seta para Esquerda
                         g_zoom_offset_x = (g_zoom_offset_x >= MOVE_STEP) ? (g_zoom_offset_x - MOVE_STEP) : 0;
                         printf("Nova posição do cursor: (%d, %d)\n", g_zoom_offset_x, g_zoom_offset_y);
-                        aplicar_pan_na_posicao_atual(); // Chama a função de PAN
+                        aplicar_pan_na_posicao_atual();
                         break;
                 }
                 continue; 

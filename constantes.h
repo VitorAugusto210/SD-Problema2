@@ -7,7 +7,7 @@
  * =================================================================
  * Este arquivo define os endereços de hardware absolutos e os
  * opcodes de instrução para o coprocessador de imagem na FPGA.
- *Para adicionar controle por teclado, precisamos modificar o programa em C que roda no HPS.
+ * Para adicionar controle por teclado, precisamos modificar o programa em C que roda no HPS.
  * Ele é projetado para ser incluído tanto por arquivos C (.c)
  * quanto por arquivos Assembly (.S) que são passados pelo
  * pré-processador C.
