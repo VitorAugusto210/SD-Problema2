@@ -22,7 +22,7 @@
     * [7.4. `mem1.v` (Módulo de Memória)](#74-mem1v-módulo-de-memória)
     * [7.5. `api_fpga.s` (A API de Hardware em Assembly)](#75-api_fpgas-a-api-de-hardware-em-assembly)
     * [7.6. `constantes.h` (O Dicionário do Projeto)](#76-constantesh-o-dicionário-do-projeto)
-    * [7.7. `menu.c` (A Aplicação Principal)](#77-menuc-a-aplicação-principal)
+    * [7.7. `menu.c`](#77-menuc-a-aplicação-principal)
 * [8. Testes e Validação](#8-testes-e-validação)
     * [8.1. Teste de Zoom In](#81-teste-de-zoom-in)
     * [8.2. Teste de Zoom Out](#82-teste-de-zoom-out)
@@ -70,7 +70,7 @@ A seguir estão os requisitos funcionais e não funcionais a serem desenvolvidos
 * **RNF03:** As imagens devem ser representadas em escala de cinza, com cada pixel codificado por um inteiro de 8 bits.
 * **RNF04:** O coprocessador deve ser compatível com o processador ARM (Hard Processor System - HPS) para viabilizar o desenvolvimento da solução.
 * **RNF05:** A imagem deve ser lida a partir de um arquivo e transferida para o coprocessador;
-* **RNF06:** Deverão ser implementados na API os comandos da ISA do coprocessador. [cite_start]As instruções devem utilizar as operações que foram anteriormente implementadas via chaves e botões na placa (vide Problema 1); [cite: 644-645]
+* **RNF06:** Deverão ser implementados na API os comandos da ISA do coprocessador. As instruções devem utilizar as operações que foram anteriormente implementadas via chaves e botões na placa (vide Problema 1).
 
 ## 4. Fundamentação Teórica
 
@@ -95,14 +95,14 @@ Aproximar uma imagem significa criar novos pixels onde antes não existia inform
 Reduzir uma imagem significa descartar informações (pixels) de forma inteligente.
 
 * **Decimação / Amostragem [RF05]**
-    * **Teoria:** Este é o método mais rápido e computacionalmente simples de redução. Também é conhecido como "subamostragem".
-    * **Funcionamento:** O algoritmo simplesmente "pula" pixels. Para uma redução 2x, ele lê o valor de 1 em cada 2 pixels, tanto na horizontal quanto na vertical, descartando os 75% de pixels restantes.
-    * **Resultado:** É extremamente rápido, mas a qualidade da imagem resultante é baixa. A grande perda de dados pode causar "aliasing" (bordas serrilhadas) e perda de detalhes finos.
+    * **Teoria:** método rápido e computacionalmente simples de redução.
+    * **Funcionamento:** O algoritmo "pula" pixels. Para uma redução 2x, ele lê o valor de 1 em cada 2 pixels, tanto na horizontal quanto na vertical, descartando os uma parte de pixels restantes.
+    * **Resultado:** Rápido, mas a qualidade da imagem resultante é baixa. A grande perda de dados pode causar de bordas serrilhadas e perda de detalhes finos.
 
 * **Média de Blocos [RF06]**
     * **Teoria:** Este método produz um resultado de qualidade superior ao da decimação, pois considera todos os pixels da imagem original.
     * **Funcionamento:** Para cada pixel na imagem de destino (reduzida), o algoritmo calcula a média de um "bloco" de pixels correspondente na imagem original. Para uma redução 2x, ele lê um bloco de 2x2 pixels, soma seus valores de intensidade e divide por 4 (média).
-    * **Resultado:** A imagem resultante é mais suave, com menos serrilhado ("aliasing") e representa melhor a imagem original, pois nenhuma informação é completamente descartada.
+    * **Resultado:** A imagem resultante é mais suave, com menos serrilhado e representa melhor a imagem original, pois nenhuma informação é completamente descartada.
 
 ## 5. Ambiente de Desenvolvimento
 
@@ -111,6 +111,7 @@ Reduzir uma imagem significa descartar informações (pixels) de forma inteligen
 | Software | Versão | Descrição |
 | :--- | :--- | :--- |
 | Quartus Prime | 23.1.0 | Ferramenta de desenvolvimento para FPGAs Intel. |
+| GNU/Linux Shell (bash) | (N/A)| Interface de linha de comandos (terminal) acedida via SSH. |
 
 ### 5.2. Hardware Utilizado
 
@@ -152,10 +153,11 @@ Esta seção descreve como instalar, configurar e operar o sistema, servindo com
         # Forneça a senha da máquina assim que solicitada
         ```
     * Transfira os arquivos de software (`menu.c`, `constantes.h`, `api_fpga.s`, `Makefile`) do seu computador para a placa usando `scp`.
-    * Transfira a imagem bitmap desejada para a placa:
+    * Transfira a imagem bitmap e o Make file para a placa:
         ```bash
         # Em um terminal no SEU computador
         scp /<Diretorio da imagem em bitmap> aluno@172.65.213.<...>:~/
+        scp /<Diretorio do Makefile> aluno@172.65.213.<...>:~/
         ```
     * De volta ao terminal SSH na placa, compile o software:
         ```bash
