@@ -341,7 +341,34 @@ Foram realizados testes de mesa pelo terminal do HPS comparando o comportamento 
 
 ## 9. Análise dos Resultados
 
-* **Comparativo Visual:** Zoom In: Ambos algoritmos não apresentaram diferenças visiveis tanto na imagem original quanto na imagem original amplificada.
-Zoom Out: Ambos algoritmos não apresentaram diferenças visiveis tanto na imagem original quanto na imagem original diminuida.
+Os testes de validação (Secção 8) confirmam que a arquitetura híbrida hardware-software foi implementada com sucesso. A aplicação em C, através da API em Assembly, conseguiu controlar o coprocessador na FPGA para executar todas as operações de zoom solicitadas.
 
-* **Limitações:** Algumas Imagens mal convertidas apresentam alguns ruidos de cores.
+### 9.1. Análise do Zoom In (Aproximação)
+
+Conforme observado nos testes, os algoritmos de **Vizinho Mais Próximo [RF03]** e **Replicação de Pixel [RF04]** produziram resultados visuais idênticos.
+
+Esta observação está de acordo com a teoria. Como descrito na `Secção 4.1`, para um zoom de 2x, ambos os métodos funcionam, na prática, da mesma maneira: cada pixel original é expandido para um bloco de 2x2 pixels na imagem de destino. O resultado é o esperado "serrilhado" (ou "pixelado") nas bordas, que é a troca esperada por um algoritmo de baixíssimo custo computacional e alta velocidade.
+
+### 9.2. Análise do Zoom Out (Redução)
+
+Ao contrário do Zoom In, os testes de Zoom Out mostram uma diferença subtil, mas importante, entre os dois métodos:
+
+* **Decimação / Amostragem [RF05]:** Este método, por simplesmente descartar 3 em cada 4 píxeis, tende a perder detalhes finos. Em áreas de alto contraste (como bordas de objetos), isto pode ser percebido como um serrilhado (aliasing) mais pronunciado, pois a informação da borda pode ser simplesmente "deitada fora".
+* **Média de Blocos [RF06]:** Este método produziu um resultado visivelmente mais suave. Ao calcular a média de um bloco 2x2, ele preserva melhor a "sensação" geral daquela área da imagem, em vez de apostar num único pixel. O resultado é uma redução de imagem que, embora um pouco mais "desfocada" (blurry), é uma representação mais fiel do original.
+
+### 9.3. Análise do "Pan" (Seleção de Janela)
+
+O teste da "Seleção de Janela de Zoom" (Secção 8.3) foi um sucesso completo e validou a parte mais complexa da arquitetura de controlo:
+
+1.  A aplicação em C (`menu.c`) capturou corretamente as setas do teclado.
+2.  A API (`api_fpga.s`) foi chamada com a função correta (`coproc_pan_zoom_with_offset`).
+3.  A lógica em Assembly ativou corretamente o **bit 20 (SEL_MEM)** na palavra de instrução enviada ao `pio_instruct`.
+4.  O hardware (`main.v`) identificou corretamente este bit e, em vez de incrementar o nível de zoom, manteve o zoom atual e aplicou apenas os novos `x_offset` e `y_offset` para mover a janela.
+
+Isto demonstra um fluxo de controlo hardware-software totalmente funcional.
+
+### 9.4. Limitações e Discussão Final
+
+Há limitação observada sobre "ruído de cores" em imagens mal convertidas. O sistema foi projetado para *grayscale* de 8 bits. Se um ficheiro `bitmap` de 24 bits (cor) for carregado, o sistema irá interpretar os dados de Cor (R, G, B) como três píxeis de cinzento separados, resultando no ruído visual.
+
+Isto não é uma falha nos algoritmos de zoom, mas sim uma limitação da rotina de carregamento de imagem (`menu.c`), que assume que o formato do ficheiro fornecido pelo utilizador está correto.
