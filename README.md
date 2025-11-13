@@ -187,7 +187,18 @@ Após executar o programa (`sudo ./programa_final`), os seguintes comandos estã
 * **Tecla 'l':** A imagem bitmap a ser carregada precisa já estar dentro da placa (transferida via `scp`).
 
 ## 7. Descrição da Solução
-Abaixo consta a descrição de cada modulo criado para a solução do projeto.
+
+A arquitetura do projeto é um **sistema híbrido Hardware-Software** dividido em quatro camadas principais, que se comunicam para dividir as tarefas entre o processador (HPS) e a lógica programável (FPGA).
+
+1.  **Camada de Aplicação (HPS):** O `menu.c`, um programa em C, que corre no Linux. Ele fornece a interface ao utilizador e define a lógica de alto-nível.
+
+2.  **Camada de Driver (HPS):** A `api_fpga.s` (Assembly) atua como o driver de baixo-nível. Ela traduz as funções C (ex: `coproc_apply_zoom`) em escritas e leituras diretas nos endereços de memória físicos do hardware.
+
+3.  **Camada de Interface (FPGA):** Os **PIOs (Parallel I/O)** (`pio_instruct`, `pio_enable`, etc.) definidos no `soc_system.qsys`. Estes são os registos de hardware que a API em Assembly preenche.
+
+4.  **Camada de Hardware (FPGA):** O `main.v` (o coprocessador) contém uma FSM que "escuta" os PIOs. Ao receber um pulso no `pio_enable`, ele lê a instrução do `pio_instruct`, executa a tarefa de processamento de imagem e sinaliza a conclusão no `pio_flags`.
+
+![Diagrama de Blocos da Arquitetura](imgs/diagrama.png)
 
 ### 7.1. `soc_system.qsys` (Sistema HPS e Barramento)
 
